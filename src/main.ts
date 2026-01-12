@@ -1,5 +1,6 @@
 import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
 import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import {fetchAndSaveArxivFromActiveNote, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
 
 // Remember to rename these classes and interfaces!
 
@@ -9,10 +10,36 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		this.addCommand({
+			id: 'paper-extractor-fetch-arxiv',
+			name: 'Fetch arXiv (HTML/PDF) from active note',
+			callback: async () => {
+				try {
+					notifyFetchStart();
+					const result = await fetchAndSaveArxivFromActiveNote(this.app);
+					notifyFetchResult(result);
+				} catch (e) {
+					console.error(e);
+					new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
+				}
+			}
+		});
+
 		// This creates an icon in the left ribbon.
 		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice('This is a notice!');
+		});
+
+		this.addRibbonIcon('download', 'Fetch arXiv (HTML/PDF)', async () => {
+			try {
+				notifyFetchStart();
+				const result = await fetchAndSaveArxivFromActiveNote(this.app);
+				notifyFetchResult(result);
+			} catch (e) {
+				console.error(e);
+				new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
+			}
 		});
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.

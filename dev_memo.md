@@ -147,6 +147,15 @@ https://example.com
 - 対象ノート:
   - `MarkdownView` を取得し、本文を取得して抽出
 
+## Implementation plan (MVP)
+
+1. Active noteから `url_01` を抽出（エディタの未保存内容を優先）
+2. arXiv URL から arXiv ID を抽出（末尾 `vN`・末尾スラッシュ等を許容）
+3. `https://arxiv.org/html/<id>` と `https://arxiv.org/pdf/<id>` を取得
+4. 保存先 `path/to/{noteBaseName}/` を作成（無ければ）
+5. `{noteBaseName}/<id>.html` と `{noteBaseName}/<id>.pdf` を常に上書き保存
+6. `Notice` で開始/完了/失敗を通知（片方失敗でも成功分は保存）
+
 ## 将来拡張
 1. Title作成
 - arXivのAbstractやHTMLからTitleを抽出する
