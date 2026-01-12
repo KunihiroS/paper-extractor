@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "paper_extractor",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Obsidian plugin that fetches arXiv paper HTML/PDF referenced from the active note.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
