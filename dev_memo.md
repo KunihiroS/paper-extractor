@@ -156,6 +156,21 @@ https://example.com
 5. `{noteBaseName}/<id>.html` と `{noteBaseName}/<id>.pdf` を常に上書き保存
 6. `Notice` で開始/完了/失敗を通知（片方失敗でも成功分は保存）
 
+## デプロイ手順（手動インストール / ローカル）
+
+1. ビルド
+   - `pnpm run build`
+2. Vaultへ配置（手動）
+   - Vault の `VaultFolder/.obsidian/plugins/paper_extractor/` を作成（無ければ）
+   - このリポジトリ直下の下記ファイルをコピー
+     - `main.js`
+     - `manifest.json`
+     - `styles.css`（あれば）
+3. Obsidianで有効化
+   - **Settings → Community plugins** で `paper_extractor` を有効化
+4. 反映
+   - `main.js` を更新したら、Obsidian をリロード（アプリ再起動 or コマンドでリロード）
+
 ## 将来拡張
 1. Title作成
 - arXivのAbstractやHTMLからTitleを抽出する
