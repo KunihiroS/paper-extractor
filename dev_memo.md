@@ -274,10 +274,10 @@ https://example.com
 ## 開発進捗
 
 - [x] `paper_fetcher` 実装
-- [ ] `title_extractor` 実装
+- [x] `title_extractor` 実装
   - [x] 要件整理
   - [x] 実装
-  - [ ] テスト
+  - [x] テスト
 - [ ] `summary_generator` 実装
 
 ## テスト
