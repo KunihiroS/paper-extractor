@@ -35,6 +35,10 @@ export function getArxivHtmlUrl(id: string): string {
 	return `https://arxiv.org/html/${id}`;
 }
 
+export function getArxivAbsUrl(id: string): string {
+	return `https://arxiv.org/abs/${id}`;
+}
+
 export function getArxivPdfUrl(id: string): string {
 	return `https://arxiv.org/pdf/${id}`;
 }

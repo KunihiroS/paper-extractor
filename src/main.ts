@@ -1,6 +1,7 @@
 import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
 import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
 import {fetchAndSaveArxivFromActiveNote, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
+import {extractAndRenameActiveNoteTitle} from './title_extractor';
 
 // Remember to rename these classes and interfaces!
 
@@ -15,6 +16,7 @@ export default class MyPlugin extends Plugin {
 			name: 'Fetch arXiv (HTML/PDF) from active note',
 			callback: async () => {
 				try {
+					await extractAndRenameActiveNoteTitle(this.app);
 					notifyFetchStart();
 					const result = await fetchAndSaveArxivFromActiveNote(this.app);
 					notifyFetchResult(result);
@@ -27,6 +29,7 @@ export default class MyPlugin extends Plugin {
 
 		this.addRibbonIcon('download', 'Fetch arXiv (HTML/PDF)', async () => {
 			try {
+				await extractAndRenameActiveNoteTitle(this.app);
 				notifyFetchStart();
 				const result = await fetchAndSaveArxivFromActiveNote(this.app);
 				notifyFetchResult(result);

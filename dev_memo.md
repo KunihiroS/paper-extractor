@@ -276,8 +276,87 @@ https://example.com
 - [x] `paper_fetcher` 実装
 - [ ] `title_extractor` 実装
   - [x] 要件整理
-  - [ ] 実装
+  - [x] 実装
   - [ ] テスト
 - [ ] `summary_generator` 実装
+
+## テスト
+
+- `title_extractor` のテスト
+
+### 前提
+
+- Vault 内に `paper_extractor` を手動インストール済みであること
+- `main.js` を更新した場合は Obsidian をリロードして反映すること
+- Custom Attachment Location を利用している場合は、添付が `./{noteBaseName}/` 配下に作られる設定であること
+
+### テストケース: `title_extractor` 単体（成功）
+
+#### 手順
+
+1. 新規ノート `hoge.md` を作成する（テンプレ準拠）
+2. `###### url_01:` に arXiv のURLを設定する（例: `https://arxiv.org/abs/2601.05175`）
+3. ノートをアクティブにした状態で、コマンド `Fetch arXiv (HTML/PDF) from active note` もしくはリボンアイコンを実行する
+
+#### 期待結果
+
+- `citation_title` から抽出されたタイトルがノート名に反映され、`hoge.md` が `{newTitle}.md` にリネームされる
+- （Custom Attachment Location 利用時）対の添付ディレクトリ名も `./{newTitle}/` に追随して更新される
+- その後 `paper_fetcher` が実行され、`./{newTitle}/` 配下に `<id>.html` と `<id>.pdf` が保存される
+
+### テストケース: `citation_title` が取得できない（中断）
+
+#### 手順
+
+1. `###### url_01:` を arXiv 以外にする、もしくは arXiv の存在しないURLにする
+2. コマンド/リボンを実行する
+
+#### 期待結果
+
+- `Notice` に失敗理由が表示される
+- ノート名は変更されない
+- `paper_fetcher` は実行されない
+
+### テストケース: `/{newTitle}` が既に存在する（中断）
+
+#### 手順
+
+1. `hoge.md` を作成して `###### url_01:` を設定する
+2. 事前に、`hoge.md` と同階層に `/{newTitle}` と同名のフォルダを作成する
+   - `newTitle` は実行時にしか分からないため、一度実行して `Notice` のエラーに出たパスを使って再現してよい
+3. コマンド/リボンを実行する
+
+#### 期待結果
+
+- `Notice` で `Target folder already exists: ...` が表示される
+- ノート名は変更されない（副作用ゼロ）
+- `paper_fetcher` は実行されない
+
+### テストケース: `newTitle.md` が既に存在する（中断）
+
+#### 手順
+
+1. `hoge.md` を作成して `###### url_01:` を設定する
+2. 事前に、`hoge.md` と同階層に `{newTitle}.md` を作成する
+3. コマンド/リボンを実行する
+
+#### 期待結果
+
+- `Notice` で `Target note already exists: ...` が表示される
+- ノート名は変更されない（副作用ゼロ）
+- `paper_fetcher` は実行されない
+
+### テストケース: タイトル正規化（禁止文字置換）
+
+#### 手順
+
+1. `citation_title` に禁止文字を含み得る論文（例: `:` や `?` を含むタイトル）を選び、`###### url_01:` を設定する
+2. コマンド/リボンを実行する
+
+#### 期待結果
+
+- 禁止文字が `_` に置換された形で `{newTitle}.md` が作られる
+- `newTitle` が空にならない限り成功する
+
 
 {EOF}
