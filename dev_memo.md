@@ -250,6 +250,54 @@ https://example.com
 #### 状態
 - 未実装
 
+#### 入力（要約対象）
+
+- `paper_fetcher` が保存した HTML ファイルを入力とする
+  - `path/to/{noteBaseName}/<id>.html`
+- ネットワークからの再取得（`abs` 再取得等）は行わない
+
+#### 出力（挿入位置・再実行時の挙動）
+
+- ノート末尾に要約ブロックを挿入する
+- 再実行時は「追記」ではなく「置換」とする
+  - 置換の安定性のため、以下の目印コメントで囲む
+    - `<!-- paper_extractor:summary:start -->`
+    - `<!-- paper_extractor:summary:end -->`
+  - 既存ブロックがあればその範囲を置換し、無ければ末尾に追加する
+
+#### 生成方式（OpenAI固定）
+
+- OpenAI API を利用して要約を生成する（OpenAI固定 / Provider切替はしない）
+
+#### システムプロンプト
+
+- システムプロンプトは Vault 内のファイルから読み込む
+  - パスは設定で指定する（例: `.obsidian/paper_extractor/system_prompt_summary.md`）
+- プロンプトの内容は公開されても問題ない前提
+
+#### APIキー管理（Gitに乗せない）
+
+- APIキーは Vault 内に保存しない
+- Vault 外の `.env` ファイルから読み込む
+  - 例: `~/.config/paper_extractor/.env`
+  - 期待するキー名: `OPENAI_API_KEY`
+- OpenAI のモデル名も Vault 外の `.env` ファイルから読み込む
+  - 期待するキー名: `OPENAI_MODEL`
+  - 未指定の場合はデフォルト値を用いる
+- `.env` ファイルのパスは設定で指定する
+
+#### 進捗通知（長時間処理）
+
+- 高性能モデル利用により時間がかかる前提のため、段階的に `Notice` で進捗を通知する
+  - 例: `(1/4) reading html` / `(2/4) loading prompt` / `(3/4) requesting OpenAI` / `(4/4) writing note`
+- 失敗時は `Notice` に失敗理由（概要）を表示する
+
+#### 非同期中のノート切替の扱い
+
+- 実行開始時点で対象ノート（`TFile` または path）を確定し、そのノートに対して書き込む
+- LLM応答待ちの間にユーザが別ノートを開いても、書き込み先は「開始時に確定したノート」を維持する
+- 対象ノートが削除/リネームされた場合は失敗として扱い、`Notice` で通知する
+
 ## 開発指針
 
 ### 実装着手条件
