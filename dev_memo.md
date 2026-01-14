@@ -327,6 +327,9 @@ https://example.com
   - [x] 実装
   - [x] テスト
 - [ ] `summary_generator` 実装
+  - [x] 要件整理
+  - [ ] 実装
+  - [ ] テスト
 
 ## テスト
 

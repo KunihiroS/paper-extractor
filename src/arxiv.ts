@@ -6,7 +6,7 @@ export function extractArxivIdFromUrl(inputUrl: string): string {
 		throw new Error('Invalid URL');
 	}
 
-	if (url.hostname !== 'arxiv.org') {
+	if (url.hostname !== 'arxiv.org' && url.hostname !== 'www.arxiv.org') {
 		throw new Error('Not an arXiv URL');
 	}
 
