@@ -283,6 +283,25 @@ https://example.com
 - `paper_fetcher` が保存した HTML ファイルを入力とする
   - `path/to/{noteBaseName}/<id>.html`
 - ネットワークからの再取得（`abs` 再取得等）は行わない
+- HTML が存在しない（未取得/保存されていない/読めない）場合は要約を諦めて中断する
+  - `Notice` で「HTML が無いため要約できない」等を通知する
+  - ログに `result=NG` と `reason=<原因コード>` を必ず残す
+    - 例: `result=NG reason=HTML_MISSING htmlPath=...`
+    - 例: `result=NG reason=HTML_READ_FAILED htmlPath=... error=...`
+
+##### 失敗時ログの reason（原因コード）
+
+- `summary_generator` の失敗時は `result=NG` に加えて `reason=<原因コード>` を必須とする
+- `reason` は機械的に集計/検索しやすい短い識別子とし、必要に応じて `error=...` や `path=...` 等の補足情報を付与する
+- `reason` の例:
+  - `HTML_MISSING`
+  - `HTML_READ_FAILED`
+  - `PROMPT_READ_FAILED`
+  - `ENV_READ_FAILED`
+  - `OPENAI_API_KEY_MISSING`
+  - `OPENAI_REQUEST_FAILED`
+  - `NOTE_WRITE_FAILED`
+  - `NOTE_MOVED_OR_DELETED`
 
 #### 出力（挿入位置・再実行時の挙動）
 
