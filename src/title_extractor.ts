@@ -1,6 +1,7 @@
 import {App, MarkdownView, normalizePath, requestUrl} from 'obsidian';
 import {extractArxivIdFromUrl, getArxivAbsUrl} from './arxiv';
 import {extractUrl01FromNoteBody} from './note';
+import {endLogBlock, startLogBlock} from './logger';
 
 export type TitleExtractResult = {
 	id: string;
@@ -32,7 +33,7 @@ function sanitizeTitleAsNoteBaseName(input: string): string {
 	return collapsed.replace(/[\\/:*?"<>|]/g, '_').trim();
 }
 
-export async function extractAndRenameActiveNoteTitle(app: App): Promise<TitleExtractResult> {
+export async function extractAndRenameActiveNoteTitle(app: App, logDir: string): Promise<TitleExtractResult> {
 	const view = app.workspace.getActiveViewOfType(MarkdownView);
 	if (!view || !view.file) {
 		throw new Error('No active note');
@@ -42,41 +43,67 @@ export async function extractAndRenameActiveNoteTitle(app: App): Promise<TitleEx
 	const url01 = extractUrl01FromNoteBody(noteBody);
 	const id = extractArxivIdFromUrl(url01);
 
-	const absUrl = getArxivAbsUrl(id);
-	const absResp = await requestUrl({url: absUrl, method: 'GET'});
-	if (absResp.status < 200 || absResp.status >= 300) {
-		throw new Error(`Failed to fetch arXiv abs (status:${absResp.status})`);
-	}
-
-	const rawTitle = extractCitationTitleFromAbsHtml(absResp.text);
-	const newTitle = sanitizeTitleAsNoteBaseName(rawTitle);
-	if (newTitle.length === 0) {
-		throw new Error('Invalid title after sanitization');
-	}
-
 	const noteFile = view.file;
-	const parentPath = noteFile.parent?.path ?? '';
-	const newNotePath = normalizePath(parentPath ? `${parentPath}/${newTitle}.md` : `${newTitle}.md`);
-	const newFolderPath = normalizePath(parentPath ? `${parentPath}/${newTitle}` : newTitle);
+	const logBlock = await startLogBlock(
+		app,
+		logDir,
+		`component=title_extractor notePath=${noteFile.path} noteBaseName=${noteFile.basename} id=${id}`
+	);
 
-	const adapter = app.vault.adapter;
-	const folderExists = await adapter.exists(newFolderPath);
-	if (folderExists) {
-		throw new Error(`Target folder already exists: ${newFolderPath}`);
+	const absUrl = getArxivAbsUrl(id);
+	let absStatus: number | 'EXCEPTION' = 'EXCEPTION';
+	let newTitle = '';
+	let newNotePath = '';
+	let oldNotePath = '';
+	try {
+		const absResp = await requestUrl({url: absUrl, method: 'GET'});
+		absStatus = absResp.status;
+		if (absResp.status < 200 || absResp.status >= 300) {
+			throw new Error(`Failed to fetch arXiv abs (status:${absResp.status})`);
+		}
+
+		const rawTitle = extractCitationTitleFromAbsHtml(absResp.text);
+		newTitle = sanitizeTitleAsNoteBaseName(rawTitle);
+		if (newTitle.length === 0) {
+			throw new Error('Invalid title after sanitization');
+		}
+
+		const parentPath = noteFile.parent?.path ?? '';
+		newNotePath = normalizePath(parentPath ? `${parentPath}/${newTitle}.md` : `${newTitle}.md`);
+		const newFolderPath = normalizePath(parentPath ? `${parentPath}/${newTitle}` : newTitle);
+
+		const adapter = app.vault.adapter;
+		const folderExists = await adapter.exists(newFolderPath);
+		if (folderExists) {
+			throw new Error(`Target folder already exists: ${newFolderPath}`);
+		}
+
+		const noteConflict = app.vault.getAbstractFileByPath(newNotePath);
+		if (noteConflict) {
+			throw new Error(`Target note already exists: ${newNotePath}`);
+		}
+
+		oldNotePath = noteFile.path;
+		await app.fileManager.renameFile(noteFile, newNotePath);
+
+		await endLogBlock(
+			app,
+			logBlock,
+			`result=OK absUrl=${absUrl} absStatus=${absStatus} newTitle=${newTitle} newNotePath=${newNotePath}`
+		);
+
+		return {
+			id,
+			oldNotePath,
+			newNotePath,
+			newTitle,
+		};
+	} catch (e) {
+		await endLogBlock(
+			app,
+			logBlock,
+			`result=NG absUrl=${absUrl} absStatus=${absStatus} error=${e instanceof Error ? e.message : 'UNKNOWN'}`
+		);
+		throw e;
 	}
-
-	const noteConflict = app.vault.getAbstractFileByPath(newNotePath);
-	if (noteConflict) {
-		throw new Error(`Target note already exists: ${newNotePath}`);
-	}
-
-	const oldNotePath = noteFile.path;
-	await app.fileManager.renameFile(noteFile, newNotePath);
-
-	return {
-		id,
-		oldNotePath,
-		newNotePath,
-		newTitle,
-	};
 }

@@ -3,10 +3,12 @@ import MyPlugin from "./main";
 
 export interface MyPluginSettings {
 	mySetting: string;
+	logDir: string;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+	mySetting: 'default',
+	logDir: ''
 }
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -21,6 +23,17 @@ export class SampleSettingTab extends PluginSettingTab {
 		const {containerEl} = this;
 
 		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('Log directory (Vault path)')
+			.setDesc('Required. Example: paper_extractor/logs')
+			.addText(text => text
+				.setPlaceholder('paper_extractor/logs')
+				.setValue(this.plugin.settings.logDir)
+				.onChange(async (value) => {
+					this.plugin.settings.logDir = value.trim();
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl)
 			.setName('Settings #1')

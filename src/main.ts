@@ -7,6 +7,29 @@ import {extractAndRenameActiveNoteTitle} from './title_extractor';
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
+	private isBusy: boolean = false;
+
+	private requireLogDirOrNotice(): string | null {
+		const logDir = this.settings.logDir.trim();
+		if (logDir.length === 0) {
+			new Notice('logDir is required (Settings → Log directory)');
+			return null;
+		}
+		return logDir;
+	}
+
+	private async runExclusive(action: () => Promise<void>): Promise<void> {
+		if (this.isBusy) {
+			new Notice('Already running');
+			return;
+		}
+		this.isBusy = true;
+		try {
+			await action();
+		} finally {
+			this.isBusy = false;
+		}
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -15,28 +38,36 @@ export default class MyPlugin extends Plugin {
 			id: 'paper-extractor-fetch-arxiv',
 			name: 'Fetch arXiv (HTML/PDF) from active note',
 			callback: async () => {
+				await this.runExclusive(async () => {
+					const logDir = this.requireLogDirOrNotice();
+					if (!logDir) return;
+					try {
+						await extractAndRenameActiveNoteTitle(this.app, logDir);
+						notifyFetchStart();
+						const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
+						notifyFetchResult(result);
+					} catch (e) {
+						console.error(e);
+						new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
+					}
+				});
+			}
+		});
+
+		this.addRibbonIcon('download', 'Fetch arXiv (HTML/PDF)', async () => {
+			await this.runExclusive(async () => {
+				const logDir = this.requireLogDirOrNotice();
+				if (!logDir) return;
 				try {
-					await extractAndRenameActiveNoteTitle(this.app);
+					await extractAndRenameActiveNoteTitle(this.app, logDir);
 					notifyFetchStart();
-					const result = await fetchAndSaveArxivFromActiveNote(this.app);
+					const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
 					notifyFetchResult(result);
 				} catch (e) {
 					console.error(e);
 					new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
 				}
-			}
-		});
-
-		this.addRibbonIcon('download', 'Fetch arXiv (HTML/PDF)', async () => {
-			try {
-				await extractAndRenameActiveNoteTitle(this.app);
-				notifyFetchStart();
-				const result = await fetchAndSaveArxivFromActiveNote(this.app);
-				notifyFetchResult(result);
-			} catch (e) {
-				console.error(e);
-				new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
-			}
+			});
 		});
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
