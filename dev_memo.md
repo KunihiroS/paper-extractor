@@ -159,10 +159,27 @@ https://example.com
   - 成功時も `result=OK` のような成功ログを必ず1行以上出力する
   - 1回の実行（1操作）が1ブロックになるよう、開始/終了が分かる形式で追記する
 
+##### セキュリティ（VaultがGit管理されている場合の事故防止）
+
+- ログには秘密情報を絶対に出力しない（APIキー、トークン、Authorizationヘッダ、`.env` の中身等）
+  - OpenAI/Gemini 等のHTTPリクエストをログに出す場合でも、ヘッダ/ボディをそのまま出力しない
+  - エラー情報は `reason` と、必要最小限の `error`（メッセージ）に留める
+  - 例外メッセージに秘密情報が混入する可能性がある場合は、マスキングしてからログに残す
+
+##### セキュリティ（.log をGit管理する前提での保証）
+
+- `.log` は Git 管理する前提とする
+- そのため、運用ルールに依存せず、実装として「秘密情報がログに混入しないこと」を強制する
+  - ログ出力は `logger` 層に集約し、出力前に必ず redaction（マスキング）を通す
+  - `appendLogLine` / `startLogBlock` / `endLogBlock` の全経路で強制する
+  - APIキー/トークン/Authorization 等のパターンを検出した場合は置換してから保存する
+  - 例外/エラーのメッセージもそのまま書き込まず、必要ならredactionしてから保存する
+
 ##### ログ補強（summary_generator開発時にまとめて実施）
 
 - `summary_generator` 実装に着手するタイミングで、ログの原因追跡性をまとめて補強する
   - 例: HTTP非2xx時の詳細（ステータス別の情報）、例外メッセージの明示、必要ならログのパースしやすさ改善
+  - セキュリティ観点の補強も含む（秘密情報のマスキング/出力禁止の徹底、VaultがGit管理の場合のログ混入事故対策）
 
 #### 連打・並行実行（実行中は無効化）
 
@@ -312,9 +329,43 @@ https://example.com
     - `<!-- paper_extractor:summary:end -->`
   - 既存ブロックがあればその範囲を置換し、無ければ末尾に追加する
 
+##### 置換ルール（実装を単純化するための前提）
+
+- 検出は文字列探索（`indexOf` 等）で行う
+  - `startMarker` と `endMarker` の両方が存在し、`startMarker` が `endMarker` より前にある場合のみ「置換」する
+  - 上記以外（片方だけ存在、順序逆、複数存在など）は「既存ブロック無し」と見なし、末尾に追加する
+- 置換時は `startMarker` から `endMarker` まで（両端のマーカー行を含む）を新しいブロックで置き換える
+- 末尾に追加する場合は、ノート末尾に `\n\n` を付与してからブロックを挿入する（末尾の改行有無に依存しない）
+
 #### 生成方式（OpenAI固定）
 
 - OpenAI API を利用して要約を生成する（OpenAI固定 / Provider切替はしない）
+
+##### 将来のProvider切替に備えた設計（実装を分離する）
+
+- 現時点では OpenAI 固定とするが、将来的に Gemini 等へ拡張しやすいように、`summary_generator` は「LLM呼び出し部分」を直接持たない
+- `summary_generator` は以下を担う（プロバイダ非依存のオーケストレーション）
+  - HTML読み込み（無い場合は中断）
+  - システムプロンプト読み込み
+  - 進捗通知（Notice）
+  - ノート末尾への挿入/置換
+  - ログ（result/reason）
+- LLM呼び出しは Provider 層として分離する
+  - `LlmProvider` interface（`summarize(input) -> text`）を定義
+  - OpenAI は `OpenAiProvider` として adapter 実装
+  - 将来 Gemini を追加する場合は `GeminiProvider` を追加するだけで済むようにする
+- Provider の生成は `createProvider(settings)` のような factory に寄せ、`summary_generator` 側は `LlmProvider` にのみ依存する
+
+##### 将来HTML→PDF入力へ変更しやすくするための設計（入力ソースを分離する）
+
+- 現時点では入力はHTML固定とするが、将来的にPDF入力（Gemini等のPDF要約）へ寄せたくなった場合に備え、入力ソース取得を `summary_generator` から分離する
+- `summary_generator` は「要約対象ドキュメントの取得」を直接実装せず、Source 層に委譲する
+  - `DocumentSource` / `SourceLoader` のような interface を用意し、`load()` で要約対象を取得する
+  - 例: `HtmlSource`（Vault内の `<id>.html` を読む） / `PdfSource`（Vault内の `<id>.pdf` や PDF URL を扱う）
+- Provider 層の入力型は将来のファイル入力を許容できる形にしておく
+  - 現時点: `htmlText` のみを渡して要約
+  - 将来: `text` に加えて `file`（PDFのURL/base64/file_id 等）を渡せる拡張を想定
+  - これにより「入力がHTMLかPDFか」の差分は Source/Provider 側に閉じ、`summary_generator` は共通処理（通知・挿入/置換・ログ）に集中できる
 
 #### システムプロンプト
 
@@ -373,6 +424,7 @@ https://example.com
   - [x] 要件整理
   - [x] 実装
   - [x] テスト
+- [x] 連打・並行実行防止（実行中フラグ）
 - [ ] `summary_generator` 実装
   - [x] 要件整理
   - [ ] 実装
