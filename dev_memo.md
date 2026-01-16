@@ -175,6 +175,11 @@ https://example.com
   - APIキー/トークン/Authorization 等のパターンを検出した場合は置換してから保存する
   - 例外/エラーのメッセージもそのまま書き込まず、必要ならredactionしてから保存する
 
+- 実装状況
+  - `logger.ts` で強制redaction（`redact` / `safeRedact`）を実装済み
+  - `Error.message` は `formatErrorForLog` 経由で `errorSummary`（redact + 1行化 + 200文字上限）として保存する
+  - redaction失敗時は元メッセージを保存せず、固定メッセージのみを保存する
+
 ##### ログ補強（summary_generator開発時にまとめて実施）
 
 - `summary_generator` 実装に着手するタイミングで、ログの原因追跡性をまとめて補強する
@@ -425,11 +430,18 @@ https://example.com
   - [x] 実装
   - [x] テスト
 - [x] 連打・並行実行防止（実行中フラグ）
+- [x] ログ（`.log`）の強制redaction（Git管理前提の事故防止）
+  - [x] `logger` 層での強制redaction（保存前のマスキング、失敗時は固定メッセージのみ）
+  - [x] エラー情報の保存を `formatErrorForLog`（`errorSummary`）へ統一
+  - [x] 合成データでのredaction検証（ダミーAPIキー/Authorizationが `***REDACTED***` になることを確認）
+  - [x] Vaultへデプロイ（`main.js` / `manifest.json` / `styles.css` を配置）
 - [ ] `summary_generator` 実装
   - [x] 要件整理
   - [ ] 実装
   - [ ] テスト
 - [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
+  - [x] セキュリティ（redaction強制）
+  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）
 
 ## テスト
 
