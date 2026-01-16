@@ -1,7 +1,7 @@
 import {App, MarkdownView, normalizePath, requestUrl} from 'obsidian';
 import {extractArxivIdFromUrl, getArxivAbsUrl} from './arxiv';
 import {extractUrl01FromNoteBody} from './note';
-import {endLogBlock, startLogBlock} from './logger';
+import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
 
 export type TitleExtractResult = {
 	id: string;
@@ -99,10 +99,11 @@ export async function extractAndRenameActiveNoteTitle(app: App, logDir: string):
 			newTitle,
 		};
 	} catch (e) {
+		const info = formatErrorForLog(e);
 		await endLogBlock(
 			app,
 			logBlock,
-			`result=NG absUrl=${absUrl} absStatus=${absStatus} error=${e instanceof Error ? e.message : 'UNKNOWN'}`
+			`result=NG absUrl=${absUrl} absStatus=${absStatus} errorName=${info.errorName} errorCode=${info.errorCode} errorSummary=${info.errorSummary}`
 		);
 		throw e;
 	}
