@@ -3,6 +3,7 @@ import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
 import {fetchAndSaveArxivFromActiveNote, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
 import {extractAndRenameActiveNoteTitle} from './title_extractor';
 import {appendLogLine, endLogBlock, startLogBlock} from './logger';
+import {generateSummaryForActiveNote} from './summary_generator';
 
 // Remember to rename these classes and interfaces!
 
@@ -47,6 +48,7 @@ export default class MyPlugin extends Plugin {
 						notifyFetchStart();
 						const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
 						notifyFetchResult(result);
+						await generateSummaryForActiveNote(this.app, this.settings);
 					} catch (e) {
 						console.error(e);
 						new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
@@ -91,6 +93,7 @@ export default class MyPlugin extends Plugin {
 					notifyFetchStart();
 					const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
 					notifyFetchResult(result);
+					await generateSummaryForActiveNote(this.app, this.settings);
 				} catch (e) {
 					console.error(e);
 					new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');

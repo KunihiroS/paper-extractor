@@ -300,6 +300,12 @@ https://example.com
 #### 状態
 - 未実装
 
+#### 実行トリガー（統合）
+
+- `summary_generator` は単独コマンドではなく、既存コマンド `Fetch arXiv (HTML/PDF) from active note` の処理末尾に統合する
+  - 実行順序は `title_extractor` → `paper_fetcher` → `summary_generator`
+  - 途中で失敗した場合は、その時点で中断する（後続処理は実行しない）
+
 #### 入力（要約対象）
 
 - `paper_fetcher` が保存した HTML ファイルを入力とする
@@ -384,10 +390,20 @@ https://example.com
 - Vault 外の `.env` ファイルから読み込む
   - 例: `~/.config/paper_extractor/.env`
   - 期待するキー名: `OPENAI_API_KEY`
+- `.env` ファイルのパスは設定で指定する（絶対パス固定）
 - OpenAI のモデル名も Vault 外の `.env` ファイルから読み込む
   - 期待するキー名: `OPENAI_MODEL`
   - 未指定の場合はデフォルト値を用いる
-- `.env` ファイルのパスは設定で指定する
+
+##### `.env` サンプル（Vault外）
+
+```dotenv
+# Required
+OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Optional (default: gpt-5.2)
+OPENAI_MODEL="gpt-5.2"
+```
 
 #### 進捗通知（長時間処理）
 
