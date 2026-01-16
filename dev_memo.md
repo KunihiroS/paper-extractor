@@ -1,9 +1,10 @@
 
-# dev memo: paper_extractor（arXiv 論文取得・要求1）
+# dev memo: paper_extractor（arXiv 論文取得・要約プラグイン）
 
 ## Plugin name
 
 - `paper_extractor`
+- Repository: https://github.com/KunihiroS/paper-extractor
 
 ## 概要
 
@@ -298,7 +299,8 @@ https://example.com
 - 論文を要約して、元ノートの下に追記する
 
 #### 状態
-- 未実装
+- 実装済み
+- OpenAI API を利用して要約を生成する（OpenAI固定 / Provider切替は未実装）
 
 #### 実行トリガー（統合）
 
@@ -408,8 +410,9 @@ OPENAI_MODEL="gpt-5.2"
 #### 進捗通知（長時間処理）
 
 - 高性能モデル利用により時間がかかる前提のため、段階的に `Notice` で進捗を通知する
-  - 例: `(1/4) reading html` / `(2/4) loading prompt` / `(3/4) requesting OpenAI` / `(4/4) writing note`
-- 失敗時は `Notice` に失敗理由（概要）を表示する
+  - 例: `(1/4) reading html` / `(2/4) loading prompt` / `(3/4) requesting AI` / `(4/4) writing note`
+- OpenAI応答待ちの間、3秒ごとに `AI response waiting...` を定期表示する
+- 失敗時は `Notice` に失敗理由（概要）を表示する（英語統一）
 
 #### 非同期中のノート切替の扱い
 
@@ -451,9 +454,10 @@ OPENAI_MODEL="gpt-5.2"
   - [x] エラー情報の保存を `formatErrorForLog`（`errorSummary`）へ統一
   - [x] 合成データでのredaction検証（ダミーAPIキー/Authorizationが `***REDACTED***` になることを確認）
   - [x] Vaultへデプロイ（`main.js` / `manifest.json` / `styles.css` を配置）
-- [ ] `summary_generator` 実装
+- [x] `summary_generator` 実装
   - [x] 要件整理
-  - [ ] 実装
+  - [x] 実装
+  - [x] 通知英語化・定期Notice（3秒ごと）
   - [ ] テスト
 - [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
@@ -462,6 +466,7 @@ OPENAI_MODEL="gpt-5.2"
 ## テスト
 
 - `title_extractor` のテスト
+- `summary_generator` のテスト（未実施）
 
 ### 前提
 
@@ -538,4 +543,30 @@ OPENAI_MODEL="gpt-5.2"
 - `newTitle` が空にならない限り成功する
 
 
-{EOF}
+### テストケース: `summary_generator` 全体（成功）
+
+#### 前提
+
+- `.env` に `OPENAI_API_KEY` と `OPENAI_MODEL` が設定されていること
+- Vault内にシステムプロンプトファイルが存在すること（設定で指定したパス）
+
+#### 手順
+
+1. 新規ノートをテンプレ準拠で作成し、arXiv URLを `###### url_01:` に設定する
+2. `Fetch arXiv (HTML/PDF) from active note` を実行する
+3. OpenAI応答待ちの間、3秒ごとに `AI response waiting...` が表示されることを確認する
+
+#### 期待結果
+
+- ノート末尾に要約ブロックが挿入される（マーカーで囲まれる）
+- 再実行時は既存ブロックが置換される
+- ログに `result=OK summaryChars=<文字数>` が記録される
+
+### テストケース: `summary_generator` 失敗パターン
+
+- **HTMLなし**: `result=NG reason=HTML_MISSING`
+- **プロンプトなし**: `result=NG reason=PROMPT_READ_FAILED`
+- **.envなし**: `result=NG reason=ENV_READ_FAILED`
+- **APIキーなし**: `result=NG reason=OPENAI_API_KEY_MISSING`
+- **OpenAIリクエスト失敗**: `result=NG reason=OPENAI_REQUEST_FAILED`
+- **ノート削除/移動**: `result=NG reason=NOTE_MOVED_OR_DELETED`
