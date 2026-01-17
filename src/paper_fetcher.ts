@@ -1,6 +1,5 @@
-import {App, MarkdownView, Notice, normalizePath, requestUrl} from 'obsidian';
+import {App, Notice, TFile, normalizePath, requestUrl} from 'obsidian';
 import {extractArxivIdFromUrl, getArxivHtmlUrl, getArxivPdfUrl} from './arxiv';
-import {extractUrl01FromNoteBody} from './note';
 import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
 
 export type FetchResult = {
@@ -13,17 +12,13 @@ export type FetchResult = {
 	pdfSaved: boolean;
 };
 
-export async function fetchAndSaveArxivFromActiveNote(app: App, logDir: string): Promise<FetchResult> {
-	const view = app.workspace.getActiveViewOfType(MarkdownView);
-	if (!view || !view.file) {
-		throw new Error('No active note');
-	}
-
-	const noteBody = view.editor.getValue();
-	const url01 = extractUrl01FromNoteBody(noteBody);
-	const id = extractArxivIdFromUrl(url01);
-
-	const noteFile = view.file;
+export async function fetchAndSaveArxiv(
+	app: App,
+	logDir: string,
+	noteFile: TFile,
+	inputUrl: string
+): Promise<FetchResult> {
+	const id = extractArxivIdFromUrl(inputUrl);
 	const parentPath = noteFile.parent?.path ?? '';
 	const folderPath = normalizePath(parentPath ? `${parentPath}/${noteFile.basename}` : noteFile.basename);
 

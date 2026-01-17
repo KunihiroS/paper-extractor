@@ -1,9 +1,10 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
+import {App, Modal, Notice, Plugin, TFile} from 'obsidian';
 import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
-import {fetchAndSaveArxivFromActiveNote, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
-import {extractAndRenameActiveNoteTitle} from './title_extractor';
-import {appendLogLine, endLogBlock, startLogBlock} from './logger';
-import {generateSummaryForActiveNote} from './summary_generator';
+import {fetchAndSaveArxiv, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
+import {extractAndRenameNoteTitle} from './title_extractor';
+import {generateSummary} from './summary_generator';
+import {extractArxivIdFromUrl} from './arxiv';
+import {loadTemplateAndInjectUrl} from './note';
 
 // Remember to rename these classes and interfaces!
 
@@ -37,116 +38,75 @@ export default class MyPlugin extends Plugin {
 		await this.loadSettings();
 
 		this.addCommand({
-			id: 'paper-extractor-fetch-arxiv',
-			name: 'Fetch arXiv (HTML/PDF) from active note',
+			id: 'paper-extractor-create-note-from-url',
+			name: 'Create paper note from arXiv URL',
 			callback: async () => {
 				await this.runExclusive(async () => {
 					const logDir = this.requireLogDirOrNotice();
 					if (!logDir) return;
+
+					const url = await promptForUrl(this.app);
+					if (!url) return;
 					try {
-						await extractAndRenameActiveNoteTitle(this.app, logDir);
+						extractArxivIdFromUrl(url);
+					} catch (e) {
+						new Notice(e instanceof Error ? e.message : 'Invalid arXiv URL');
+						return;
+					}
+
+					const templatePath = this.settings.templatePath?.trim() ?? '';
+					if (templatePath.length === 0) {
+						new Notice('templatePath is required (Settings).');
+						return;
+					}
+					if (templatePath.startsWith('/') || templatePath.startsWith('~')) {
+						new Notice('templatePath must be a Vault-relative path (not absolute).');
+						return;
+					}
+
+					let templateText: string;
+					try {
+						templateText = await this.app.vault.adapter.read(templatePath);
+					} catch (e) {
+						new Notice('Failed to read template.');
+						return;
+					}
+
+					let resolvedText: string;
+					try {
+						resolvedText = loadTemplateAndInjectUrl(templateText, url).resolvedText;
+					} catch (e) {
+						const msg = e instanceof Error ? e.message : '';
+						if (msg === 'TEMPLATE_URL_PLACEHOLDER_MISSING') {
+							new Notice('Template missing {{url}} placeholder.');
+						} else {
+							new Notice('Failed to process template.');
+						}
+						return;
+					}
+
+					try {
+						const noteFile = await createTempNote(this.app, resolvedText);
+						const renameResult = await extractAndRenameNoteTitle(this.app, logDir, noteFile, url);
+						const latestFile = this.app.vault.getAbstractFileByPath(renameResult.newNotePath);
+						if (!(latestFile instanceof TFile)) {
+							new Notice('Target note was moved or deleted.');
+							return;
+						}
 						notifyFetchStart();
-						const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
+						const result = await fetchAndSaveArxiv(this.app, logDir, latestFile, url);
 						notifyFetchResult(result);
-						await generateSummaryForActiveNote(this.app, this.settings);
+						await generateSummary(this.app, this.settings, latestFile, url);
 					} catch (e) {
 						console.error(e);
-						new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
+						new Notice(e instanceof Error ? e.message : 'Failed to create paper note');
 					}
 				});
-			}
-		});
-
-		this.addCommand({
-			id: 'paper-extractor-test-redaction',
-			name: 'Test log redaction (no API call)',
-			callback: async () => {
-				await this.runExclusive(async () => {
-					const logDir = this.requireLogDirOrNotice();
-					if (!logDir) return;
-					const block = await startLogBlock(
-						this.app,
-						logDir,
-						'test=redaction payload="OPENAI_API_KEY=sk-1234567890abcdef Authorization: Bearer abc.def.ghi"'
-					);
-					await appendLogLine(
-						this.app,
-						logDir,
-						'test=redaction payload="OPENAI_API_KEY=sk-1234567890abcdef&token=abcd Authorization: Bearer xyz"'
-					);
-					await endLogBlock(
-						this.app,
-						block,
-						'test=redaction end payload="sk-1234567890abcdef"'
-					);
-					new Notice('Redaction test log written. Check today\'s .log file.');
-				});
-			}
-		});
-
-		this.addRibbonIcon('download', 'Fetch arXiv (HTML/PDF)', async () => {
-			await this.runExclusive(async () => {
-				const logDir = this.requireLogDirOrNotice();
-				if (!logDir) return;
-				try {
-					await extractAndRenameActiveNoteTitle(this.app, logDir);
-					notifyFetchStart();
-					const result = await fetchAndSaveArxivFromActiveNote(this.app, logDir);
-					notifyFetchResult(result);
-					await generateSummaryForActiveNote(this.app, this.settings);
-				} catch (e) {
-					console.error(e);
-					new Notice(e instanceof Error ? e.message : 'Failed to fetch arXiv');
-				}
-			});
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
 			}
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 
 	}
 
@@ -162,14 +122,59 @@ export default class MyPlugin extends Plugin {
 	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
+function promptForUrl(app: App): Promise<string | null> {
+	return new Promise((resolve) => {
+		const modal = new UrlPromptModal(app, (value) => resolve(value));
+		modal.open();
+	});
+}
+
+async function createTempNote(app: App, content: string): Promise<TFile> {
+	let counter = 0;
+	while (true) {
+		const suffix = counter === 0 ? '' : `_${counter}`;
+		const fileName = `untitled_${Date.now()}${suffix}.md`;
+		const existing = app.vault.getAbstractFileByPath(fileName);
+		if (!existing) {
+			return await app.vault.create(fileName, content);
+		}
+		counter += 1;
+	}
+}
+
+class UrlPromptModal extends Modal {
+	private readonly onSubmit: (value: string | null) => void;
+
+	constructor(app: App, onSubmit: (value: string | null) => void) {
 		super(app);
+		this.onSubmit = onSubmit;
 	}
 
 	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+		const {contentEl} = this;
+		contentEl.empty();
+		contentEl.createEl('h2', {text: 'Enter arXiv URL'});
+		const input = contentEl.createEl('input', {type: 'text'});
+		input.placeholder = 'https://arxiv.org/abs/XXXX.XXXXX';
+		input.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				this.onSubmit(input.value.trim() || null);
+				this.close();
+			}
+		});
+		const buttonRow = contentEl.createDiv({cls: 'paper-extractor-modal-actions'});
+		const okButton = buttonRow.createEl('button', {text: 'OK'});
+		okButton.addEventListener('click', () => {
+			this.onSubmit(input.value.trim() || null);
+			this.close();
+		});
+		const cancelButton = buttonRow.createEl('button', {text: 'Cancel'});
+		cancelButton.addEventListener('click', () => {
+			this.onSubmit(null);
+			this.close();
+		});
+		input.focus();
 	}
 
 	onClose() {

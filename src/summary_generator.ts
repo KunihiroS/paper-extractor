@@ -1,7 +1,6 @@
-import {App, MarkdownView, Notice, TFile, normalizePath, requestUrl} from 'obsidian';
+import {App, Notice, TFile, normalizePath, requestUrl} from 'obsidian';
 import {extractArxivIdFromUrl} from './arxiv';
 import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
-import {extractUrl01FromNoteBody} from './note';
 import type {MyPluginSettings} from './settings';
 import * as fs from 'fs/promises';
 
@@ -98,18 +97,13 @@ async function callOpenAiChatCompletion(params: {
 	return text.trim();
 }
 
-function requireActiveNoteOrThrow(app: App): {file: TFile; noteBody: string} {
-	const view = app.workspace.getActiveViewOfType(MarkdownView);
-	if (!view || !view.file) {
-		throw new Error('NO_ACTIVE_NOTE');
-	}
-	return {file: view.file, noteBody: view.editor.getValue()};
-}
-
-export async function generateSummaryForActiveNote(app: App, settings: MyPluginSettings): Promise<void> {
-	const {file: noteFile, noteBody} = requireActiveNoteOrThrow(app);
-	const url01 = extractUrl01FromNoteBody(noteBody);
-	const id = extractArxivIdFromUrl(url01);
+export async function generateSummary(
+	app: App,
+	settings: MyPluginSettings,
+	noteFile: TFile,
+	inputUrl: string
+): Promise<void> {
+	const id = extractArxivIdFromUrl(inputUrl);
 
 	const logDir = settings.logDir.trim();
 	if (logDir.length === 0) {

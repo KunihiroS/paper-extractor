@@ -1,18 +1,18 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 import MyPlugin from "./main";
 
 export interface MyPluginSettings {
-	mySetting: string;
 	logDir: string;
 	systemPromptPath: string;
 	envPath: string;
+	templatePath: string;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default',
 	logDir: '',
 	systemPromptPath: '',
-	envPath: ''
+	envPath: '',
+	templatePath: ''
 }
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -24,7 +24,7 @@ export class SampleSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
@@ -62,14 +62,16 @@ export class SampleSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
+			.setName('Template path (Vault path)')
+			.setDesc('Required. Example: templates/paper_extractor.md')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('templates/paper_extractor.md')
+				.setValue(this.plugin.settings.templatePath)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.templatePath = value.trim();
 					await this.plugin.saveSettings();
 				}));
+
+
 	}
 }
