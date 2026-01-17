@@ -570,3 +570,85 @@ OPENAI_MODEL="gpt-5.2"
 - **APIキーなし**: `result=NG reason=OPENAI_API_KEY_MISSING`
 - **OpenAIリクエスト失敗**: `result=NG reason=OPENAI_REQUEST_FAILED`
 - **ノート削除/移動**: `result=NG reason=NOTE_MOVED_OR_DELETED`
+
+## 実装計画（仕様変更：コマンド起動・URL入力・新規ノート・テンプレ適用）
+
+### 目的
+
+- リリース済みのプラグインを機能更新する
+- コマンドパレット起動のみ（リボン廃止）
+- arXiv URL は実行時にユーザ入力（Prompt）
+- 新規ノートを Vault ルートに作成して処理
+- テンプレートファイルを適用し、`{{url}}` を必須置換
+
+### 影響範囲
+
+- **UI/起動導線**
+  - リボン起動の廃止（`addRibbonIcon` 削除）
+  - コマンドパレット起動のみ（旧コマンド廃止、新コマンド追加）
+  - URL入力のPrompt（1行入力ダイアログ）導入
+- **設定**
+  - テンプレートパス設定の追加（Vault内パス、必須）
+  - 未設定時は処理中断＋Notice
+- **テンプレート処理**
+  - `{{url}}` 置換必須（未検出なら中断）
+  - 将来のメタ情報注入に備えた拡張可能な実装が必要
+- **ノート作成/保存先**
+  - 新規ノートは Vault ルート固定
+  - 一時名で作成し、`title_extractor` でリネーム
+- **入出力フロー**
+  - `url_01` 依存を撤廃し、入力URLを処理パイプラインへ引き回す
+  - 既存の「アクティブノート前提」APIを置換
+- **既存モジュール改修**
+  - `main.ts`：フロー再設計（Prompt→テンプレ適用→新規ノート→3処理連結）
+  - `settings.ts`：テンプレートパス設定追加
+  - `note.ts`：テンプレ読み込み/URL注入/必須検証のユーティリティ追加
+  - `title_extractor.ts`：対象ノート/URLの引数化
+  - `paper_fetcher.ts`：対象ノート/URLの引数化
+  - `summary_generator.ts`：対象ノート/URLの引数化
+- **通知/ログ**
+  - Noticeは英語統一を維持
+  - 失敗原因コードの追加（テンプレ未指定/プレースホルダ欠如など）
+- **サンプル機能の撤去**
+  - `open-modal-*` / `replace-selected` / status bar / interval などのサンプルUI撤去
+- **テスト更新**
+  - URL入力、テンプレ未設定、`{{url}}` 不在、ノート作成失敗などのテスト追加
+
+### 実装ステップ
+
+1. **設定追加**
+   - `templatePath`（Vault内パス、必須）を `settings.ts` に追加
+
+2. **テンプレ適用ユーティリティ**
+   - `loadTemplateAndInjectUrl(templatePath, url)` を追加
+   - `{{url}}` が存在しない場合は `TEMPLATE_URL_PLACEHOLDER_MISSING` で中断
+   - `templatePath` 未設定時は実行初期で中断（Noticeで通知）
+
+3. **コマンドフロー刷新（main.ts）**
+   - 新コマンド: `Create paper note from arXiv URL`
+   - Prompt で URL 入力 → 検証 → テンプレ適用 → 新規ノート作成
+   - title_extractor → paper_fetcher → summary_generator の順で実行
+   - 旧コマンド・リボン・サンプルコマンドは削除
+   - 新規ノートの一時名は `untitled_<timestamp>.md` 形式で衝突回避
+
+4. **既存処理の引数化**
+   - `extractAndRenameActiveNoteTitle` → `extractAndRenameNoteTitle(app, logDir, noteFile, url)`
+   - `fetchAndSaveArxivFromActiveNote` → `fetchAndSaveArxiv(app, logDir, noteFile, url)`
+   - `generateSummaryForActiveNote` → `generateSummary(app, settings, noteFile, url)`
+   - `extractUrl01FromNoteBody` は廃止 or `@deprecated` 明記
+
+5. **通知・ログの整合**
+
+6. **テスト項目**
+   - テンプレ未指定 / `{{url}}` 無し / URL不正 / 新規ノート作成失敗
+   - 旧フロー削除後の基本動作確認
+
+7. **移行ガイド（既存ユーザ向け）**
+   - 旧フロー（アクティブノート/`url_01`依存/リボン起動）の廃止を明記
+   - 新フロー（コマンド起動/URL入力/テンプレ適用）への切替手順を記載
+
+8. **第三者レビューの追記事項**
+   - `@deprecated` マークの付与（廃止予定のAPI/関数）
+   - 一時名規則の明記（`untitled_<timestamp>.md`）
+   - テンプレ未設定時のUX（Notice表示/エラー処理）
+   - 既存ユーザへの移行ガイドの提供（ドキュメント/Notice）
