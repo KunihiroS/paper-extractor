@@ -604,6 +604,13 @@ OPENAI_MODEL="gpt-5.2"
 - [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
   - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）  
+- [ ] メタ情報の充実化
+  - [ ] プレースホルダ（オプション）
+    - `{{author}}`（著者）
+    - `{{pub_date}}`（公開日）
+    - `{{updated_date}}`（更新日）
+    - `{{category}}`（カテゴリー）
+  - [ ] テンプレート内に存在するプレースホルダのみ置換（現行の `{{date}}` / `{{time}}` と同様に未指定なら無視）
 - [ ] 外部連携（API公開）
   - [x] 実装方針の記載（dev_memo の「実装検討: 外部呼び出し（API公開）」）
   - [ ] 実装（公開メソッド/API surface）
