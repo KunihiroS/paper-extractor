@@ -1,3 +1,6 @@
+/**
+ * @deprecated New flow does not use url_01 from note body.
+ */
 export function extractUrl01FromNoteBody(noteBody: string): string {
 	const lines = noteBody.split(/\r?\n/);
 
@@ -24,4 +27,18 @@ export function extractUrl01FromNoteBody(noteBody: string): string {
 	}
 
 	throw new Error('url_01 not found');
+}
+
+export type TemplateLoadResult = {
+	templateText: string;
+	resolvedText: string;
+};
+
+export function loadTemplateAndInjectUrl(templateText: string, url: string): TemplateLoadResult {
+	if (!templateText.includes('{{url}}')) {
+		throw new Error('TEMPLATE_URL_PLACEHOLDER_MISSING');
+	}
+
+	const resolvedText = templateText.replace(/\{\{url\}\}/g, url);
+	return {templateText, resolvedText};
 }

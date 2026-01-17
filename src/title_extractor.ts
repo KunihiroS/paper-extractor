@@ -1,6 +1,5 @@
-import {App, MarkdownView, normalizePath, requestUrl} from 'obsidian';
+import {App, TFile, normalizePath, requestUrl} from 'obsidian';
 import {extractArxivIdFromUrl, getArxivAbsUrl} from './arxiv';
-import {extractUrl01FromNoteBody} from './note';
 import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
 
 export type TitleExtractResult = {
@@ -33,17 +32,13 @@ function sanitizeTitleAsNoteBaseName(input: string): string {
 	return collapsed.replace(/[\\/:*?"<>|]/g, '_').trim();
 }
 
-export async function extractAndRenameActiveNoteTitle(app: App, logDir: string): Promise<TitleExtractResult> {
-	const view = app.workspace.getActiveViewOfType(MarkdownView);
-	if (!view || !view.file) {
-		throw new Error('No active note');
-	}
-
-	const noteBody = view.editor.getValue();
-	const url01 = extractUrl01FromNoteBody(noteBody);
-	const id = extractArxivIdFromUrl(url01);
-
-	const noteFile = view.file;
+export async function extractAndRenameNoteTitle(
+	app: App,
+	logDir: string,
+	noteFile: TFile,
+	inputUrl: string
+): Promise<TitleExtractResult> {
+	const id = extractArxivIdFromUrl(inputUrl);
 	const logBlock = await startLogBlock(
 		app,
 		logDir,
