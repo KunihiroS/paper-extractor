@@ -34,11 +34,36 @@ export type TemplateLoadResult = {
 	resolvedText: string;
 };
 
+type TemplateVariables = {
+	url: string;
+	date: string;
+	time: string;
+};
+
+function formatDateParts(now: Date): {date: string; time: string} {
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, '0');
+	const day = String(now.getDate()).padStart(2, '0');
+	const hours = String(now.getHours()).padStart(2, '0');
+	const minutes = String(now.getMinutes()).padStart(2, '0');
+	return {
+		date: `${year}-${month}-${day}`,
+		time: `${hours}:${minutes}`,
+	};
+}
+
+function replaceTemplateVariables(templateText: string, vars: TemplateVariables): string {
+	return templateText
+		.replace(/\{\{url\}\}/g, vars.url)
+		.replace(/\{\{date\}\}/g, vars.date)
+		.replace(/\{\{time\}\}/g, vars.time);
+}
+
 export function loadTemplateAndInjectUrl(templateText: string, url: string): TemplateLoadResult {
 	if (!templateText.includes('{{url}}')) {
 		throw new Error('TEMPLATE_URL_PLACEHOLDER_MISSING');
 	}
-
-	const resolvedText = templateText.replace(/\{\{url\}\}/g, url);
+	const {date, time} = formatDateParts(new Date());
+	const resolvedText = replaceTemplateVariables(templateText, {url, date, time});
 	return {templateText, resolvedText};
 }

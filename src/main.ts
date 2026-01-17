@@ -2,7 +2,6 @@ import {App, Modal, Notice, Plugin, TFile} from 'obsidian';
 import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
 import {fetchAndSaveArxiv, notifyFetchResult, notifyFetchStart} from './paper_fetcher';
 import {extractAndRenameNoteTitle} from './title_extractor';
-import {appendLogLine, endLogBlock, startLogBlock} from './logger';
 import {generateSummary} from './summary_generator';
 import {extractArxivIdFromUrl} from './arxiv';
 import {loadTemplateAndInjectUrl} from './note';
@@ -102,33 +101,6 @@ export default class MyPlugin extends Plugin {
 						console.error(e);
 						new Notice(e instanceof Error ? e.message : 'Failed to create paper note');
 					}
-				});
-			}
-		});
-
-		this.addCommand({
-			id: 'paper-extractor-test-redaction',
-			name: 'Test log redaction (no API call)',
-			callback: async () => {
-				await this.runExclusive(async () => {
-					const logDir = this.requireLogDirOrNotice();
-					if (!logDir) return;
-					const block = await startLogBlock(
-						this.app,
-						logDir,
-						'test=redaction payload="OPENAI_API_KEY=sk-1234567890abcdef Authorization: Bearer abc.def.ghi"'
-					);
-					await appendLogLine(
-						this.app,
-						logDir,
-						'test=redaction payload="OPENAI_API_KEY=sk-1234567890abcdef&token=abcd Authorization: Bearer xyz"'
-					);
-					await endLogBlock(
-						this.app,
-						block,
-						'test=redaction end payload="sk-1234567890abcdef"'
-					);
-					new Notice('Redaction test log written. Check today\'s .log file.');
 				});
 			}
 		});
