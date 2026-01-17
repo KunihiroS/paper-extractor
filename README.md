@@ -1,92 +1,163 @@
 # paper_extractor
 
-This is an Obsidian plugin (https://obsidian.md).
+paper_extractor is an Obsidian plugin that helps you create a paper note from an arXiv URL and then:
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+- Renames the note based on the paper title (from `citation_title`).
+- Downloads arXiv HTML/PDF and saves them next to the note.
+- Generates a summary and appends/replaces it in the note.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+The plugin is designed to be used from the **Command Palette**.
 
-## First time 
+## How it works
 
-Quick starting guide for new plugin devs:
+1. Run the command **Create paper note from arXiv URL**.
+2. Enter an arXiv URL (e.g. `https://arxiv.org/abs/2601.05175`).
+3. The plugin creates a new note in the Vault root from a user-defined template.
+4. The note is renamed to the extracted paper title.
+5. HTML/PDF are downloaded into a sibling folder.
+6. A summary is generated and written into the note.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/paper_extractor` folder.
-- Install NodeJS, then run `pnpm install` in the command line under your repo folder.
-- Run `pnpm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `pnpm update` in the command line under your repo folder.
+## Settings
 
-## Releasing new releases
+Open **Settings → Community plugins → paper_extractor**.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### Required
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+- **Log directory (Vault path)** (`logDir`)
+  - Example: `paper_extractor/logs`
+- **Template path (Vault path)** (`templatePath`)
+  - Example: `templates/paper_extractor.md`
+  - The template must contain `{{url}}`.
+- **System prompt path (Vault path)** (`systemPromptPath`)
+  - Required for `summary_generator`.
+  - Example: `.obsidian/paper_extractor/system_prompt_summary.md`
+- **.env path (absolute path)** (`envPath`)
+  - Required for `summary_generator`.
+  - Example: `/home/you/.config/paper_extractor/.env`
 
-## Adding your plugin to the community plugin list
+`.env` file example:
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+```dotenv
+# Required
+OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `pnpm install` to install dependencies.
-- `pnpm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/paper_extractor/`.
-
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidian specific code guidelines.
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidian specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+# Optional (default: gpt-5.2)
+OPENAI_MODEL="gpt-5.2"
 ```
 
-If you have multiple URLs, you can also do:
+## Template format
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+Your template file is a regular Markdown file stored inside the Vault. The plugin replaces these placeholders:
+
+- `{{url}}` (required)
+- `{{date}}` (optional, replaced as `YYYY-MM-DD`)
+- `{{time}}` (optional, replaced as `HH:mm`)
+
+Template example:
+
+```text
+###### Created:
+{{date}} {{time}}
+###### Tags:
+#paper
+###### url_01:
+{{url}}
+###### memo:
+
+---
 ```
 
-## API Documentation
+The summary is appended after the `---` line.
 
-See https://docs.obsidian.md
+### Note
+
+- A new note is created in the **Vault root**.
+- Temporary name: `untitled_<timestamp>.md` (collision-safe)
+- Then renamed based on `citation_title`.
+
+### Attachments (HTML/PDF)
+
+If the note path is:
+
+- `path/to/<noteBaseName>.md`
+
+Then downloaded files are saved to:
+
+- Folder: `path/to/<noteBaseName>/`
+- Files:
+  - `<arxivId>.html`
+  - `<arxivId>.pdf`
+
+### Logs
+
+- Logs are appended daily into `logDir`.
+- File name: `paper_extractor_YYYYMMDD.log`
+- Sensitive values are redacted before writing logs.
+
+## Troubleshooting
+
+- **"logDir is required"**
+  - Set **Log directory (Vault path)**.
+- **"templatePath is required" / "Template missing {{url}} placeholder"**
+  - Set **Template path (Vault path)** and ensure your template contains `{{url}}`.
+- **"Failed to read template"**
+  - Verify the template path exists and is Vault-relative (not absolute).
+- **Summary generation fails**
+  - Verify `systemPromptPath` (Vault path) exists.
+  - Verify `envPath` (absolute path) exists and contains `OPENAI_API_KEY`.
+- **"Already running"**
+  - The plugin prevents concurrent runs. Wait for the current run to finish.
+
+## Security & privacy
+
+- API keys must not be stored inside the Vault.
+- The plugin reads OpenAI credentials from an external `.env` file.
+- Logs enforce redaction to avoid accidentally writing secrets into files.
+
+## Development
+
+### Install
+
+```bash
+pnpm install
+```
+
+### Watch build
+
+```bash
+pnpm run dev
+```
+
+### Production build
+
+```bash
+pnpm run build
+```
+
+### Manual install (local)
+
+Copy these files into your Vault:
+
+- `main.js`
+- `manifest.json`
+- `styles.css` (if present)
+
+Target folder:
+
+`<Vault>/.obsidian/plugins/paper_extractor/`
+
+Reload Obsidian and enable the plugin.
+
+## Releasing
+
+- Update `manifest.json` version.
+- Update `versions.json` (plugin version → minimum Obsidian version).
+- Create a GitHub release and attach `main.js`, `manifest.json`, and `styles.css`.
+
+## Future development
+
+- **External API / programmatic invocation**
+  - Expose a stable API surface so other plugins (and optionally the Console/Templater) can run the same workflow programmatically.
+  - Example direction:
+    - `app.plugins.getPlugin("paper_extractor")` and a public method like `createPaperNoteFromUrl(url)`.
+    - Optional `window` exposure behind an opt-in setting.

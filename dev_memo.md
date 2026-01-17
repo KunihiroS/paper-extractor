@@ -603,4 +603,11 @@ OPENAI_MODEL="gpt-5.2"
   - [ ] テスト
 - [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
-  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）
+  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）  
+- [ ] 外部連携（API公開）
+  - [x] 実装方針の記載（dev_memo の「実装検討: 外部呼び出し（API公開）」）
+  - [ ] 実装（公開メソッド/API surface）
+- [x] ドキュメント更新
+  - [x] `dev_memo.md` を現行フロー（コマンド起動・URL入力・新規ノート・テンプレ適用）に合わせて整理
+  - [x] 外部呼び出し（API公開）機能の実装検討セクションを追加
+  - [x] `README.md` を現行仕様に合わせて英語で刷新
