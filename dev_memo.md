@@ -13,35 +13,52 @@
 - `paper_fetcher`
   - arXiv URL から論文データを取得して保存する
 - `title_extractor`
-  - 論文タイトルを取得して、元ノートのタイトルを更新する
+  - 論文タイトルを取得して、対象ノートのタイトル（ファイル名）を更新する
 - `summary_generator`
-  - 論文を要約して、元ノートの下に追記する
+  - 論文を要約して、対象ノートの下に追記する
+
+## 重要: 廃止/上書きされた機能（現行仕様）
+
+以下は**旧仕様**であり、現行実装では**廃止/上書き済み**。
+
+- **起動方法**
+  - 旧: リボン押下
+  - 現行: **コマンドパレットのみ**（リボンは廃止）
+- **URL取得方法**
+  - 旧: ノート内 `###### url_01:` から抽出
+  - 現行: **コマンド実行時の入力**（PromptでURL入力）
+- **対象ノート**
+  - 旧: アクティブノート
+  - 現行: **新規ノートを自動作成**（Vaultルート）
+- **テンプレ適用**
+  - 旧: 手動テンプレ適用を前提
+  - 現行: **テンプレファイルを自動適用**（`{{url}}` 必須 / `{{date}}` `{{time}}` を置換）
 
 ## 前提条件
 
 - 個人利用を想定している。
-- ノートの本文は指定のテンプレートと、入力ルールの指定等に沿っているものとする。
+- ノートはプラグインが新規作成する（Vaultルート）。
+- 新規作成時の本文は「設定で指定したテンプレートファイル」から生成される。
+  - テンプレートは Vault 内のファイルで、ユーザが自由に編集できる。
+  - テンプレートには `{{url}}` が必須。
+  - `{{date}}` と `{{time}}` は作成時に現在日時へ置換される。
 
-以下は完成形イメージのサンプル（要約まで含む）。
+以下は完成形イメージのサンプル。
 
 ```指定テンプレートsample
 ###### Created:
-2026-01-12 09:43 
+{{date}} {{time}}
 ###### タグ:
 #paper
-###### url_01: 
-https://arxiv.org/abs/2601.05175
+###### url_01:
+{{url}}
 ###### url_02: 
-https://ivul-kaust.github.io/projects/videoauto-r1/
+
 ###### memo: 
 
 ---
-# One line and three points
-動画理解において、「直感的な即答」と「論理的な思考」を使い分けることで、推論コストを大幅に削減しつつ精度を向上させた新しい強化学習フレームワーク。
-{以下、要約が続く}
+
 ```
-- `###### url_01:` ブロックに本プラグインが対象とするarXivのURLが記載されている。
-- 入力されるURLはarXivのURLであり、`https://arxiv.org/abs/{id}`の形式であることを前提とする。
 
 ## 想定ユーザフロー
 
@@ -50,10 +67,10 @@ https://ivul-kaust.github.io/projects/videoauto-r1/
 ```
 - title_extractor
 
-1. ユーザーがObsidianで新しいノートをテンプレートから作成する
-2. ユーザーがarXiv論文URLを入力する
-3. ユーザーがリボンの本プラグインを押下する
-4. タイトルを元ノートのファイル名に反映する（ファイル名リネーム）
+1. ユーザーがコマンドパレットから `Create paper note from arXiv URL` を実行する
+2. Prompt に arXiv URL を入力する
+3. プラグインがテンプレートを適用して新規ノートを作成する
+4. タイトルをノートのファイル名に反映する（ファイル名リネーム）
 
 - paper_fetcher
 
@@ -61,7 +78,7 @@ https://ivul-kaust.github.io/projects/videoauto-r1/
 
 - summary_generator
 
-6. arXiv論文を要約して、元ノートの下に追記する
+6. arXiv論文を要約して、対象ノートの下に追記する
 ```
 
 ## 個別機能詳細
@@ -72,41 +89,23 @@ https://ivul-kaust.github.io/projects/videoauto-r1/
 
 #### 目的
 
-- **論文要約ノート（テンプレ準拠）から元論文URLを1つ特定**し、arXiv から論文データを取得して **そのノートと同階層の添付ディレクトリに保存**する。
+- コマンド実行時に入力された arXiv URL（入力URL）を元に、arXiv から論文データを取得して **対象ノートと同階層の添付ディレクトリに保存**する。
 - 1st iteration は **arXiv のみ**対応（将来拡張で他サイト対応の余地は残す）。
 
 #### 対象ノートの定義
 
-- **ユーザが今見ているノート**を対象にする。
-  - 実装上は `workspace.getActiveViewOfType(MarkdownView)` で取得できる想定。
-  - タブを開いているだけのノートは対象外。
-- ノート本文は、可能なら **エディタ上の最新状態**（未保存の編集も含む）を優先して走査する。
+- 本プラグインが**新規作成したノート**を対象にする。
+  - 新規ノートは Vault ルートに作成する。
+  - 一時名で作成後、`title_extractor` によりファイル名リネームされる。
+- `paper_fetcher` は対象ノート（`TFile`）と入力URLを引数で受け取って実行する（アクティブノートは参照しない）。
 
 #### 入力テンプレ（前提）
 
-ノートは次のテンプレに従う（多少の揺れは許容しても良いが、基本は決め打ちで良い）。
-以下は最小テンプレ（`url_01` 抽出に必要な部分）。
-
-```text
-###### Created:
-2026-01-12 09:43
-###### タグ:
-#paper
-###### url_01:
-https://arxiv.org/abs/2601.05175
-###### url_02:
-https://example.com
-###### memo:
-
----
-```
-
-#### URL抽出ルール（決め打ち）
-
-- `###### url_01:` の **直後**にある URL を「要約元論文URL」とみなす。
-  - 原則は「次の行の非空文字列」
-  - ただし将来のブレ対策として、同一行にURLが書かれていても許容してよい（例: `###### url_01: https://...`）
-- 今回は `url_02` などの他URLは無視する（出典元等が混ざるため）。
+- ノート本文は、設定 `templatePath` で指定された Vault 内テンプレートから生成する。
+- テンプレート変数（置換）
+  - 必須: `{{url}}`
+  - 任意: `{{date}}` / `{{time}}`
+- `paper_fetcher` はテンプレート本文からURLを抽出しない（入力URLを引数で受け取る）。
 
 #### arXiv URL の変換ルール
 
@@ -122,7 +121,7 @@ https://example.com
 
 #### 保存先ルール（Vault内）
 
-- 元ノート: `path/to/{noteBaseName}.md`
+- 対象ノート: `path/to/{noteBaseName}.md`
 - 保存フォルダ: `path/to/{noteBaseName}/`
   - フォルダが無ければ作成する
 - 保存ファイル:
@@ -133,7 +132,7 @@ https://example.com
 
 - 常時監視はしない。
 - **ユーザが明示操作**して開始する。
-  - リボンアイコンを押下
+  - コマンドパレットから `Create paper note from arXiv URL` を実行
 
 #### UX（通知）
 
@@ -190,7 +189,7 @@ https://example.com
 #### 連打・並行実行（実行中は無効化）
 
 - `paper_fetcher` / `title_extractor` / `summary_generator` は「実行中フラグ」を持ち、二重実行を防ぐ
-- 実行中にリボン/コマンドが押下された場合は開始せず、`Notice` で「実行中」を通知する
+- 実行中にコマンドが押下された場合は開始せず、`Notice` で「実行中」を通知する
 
 #### 準正常系・エラー処理
 
@@ -201,10 +200,8 @@ https://example.com
 - **URLから取得できない（404等）**
   - ユーザにエラー通知する（Notice）
   - 失敗理由（HTTP status 等）はログに残す
-- **ノートがテンプレに従っていない / url_01 が見つからない**
-  - 何もせずエラー通知（「url_01 が見つからない」など）
-- **url_01 が arXiv ではない**
-  - 1st iteration では対象外としてエラー通知
+- **入力URLが不正 / arXiv URL ではない**
+  - エラー通知して中断する
 
 #### 競合懸念（他プラグインとの整合）
 
@@ -217,13 +214,13 @@ https://example.com
 
 #### 決定事項（MVP仕様サマリ）
 
-- **対象**: ユーザが今見ているノート（アクティブなノート）
-- **URL抽出**: `###### url_01:` の直後のURLを採用（テンプレ準拠前提）
+- **対象**: プラグインが新規作成したノート（Vaultルート、一時名→リネーム）
+- **URL入力**: コマンド実行時に Prompt で入力
 - **対応**: arXivのみ
 - **取得**: `html` と `pdf` を両方取得して保存
   - `https://arxiv.org/html/<id>`
   - `https://arxiv.org/pdf/<id>`
-- **保存先**: 元ノートと同階層の `{noteTitle}/`（無ければ作成）
+- **保存先**: 対象ノートと同階層の `{noteTitle}/`（無ければ作成）
 - **保存ファイル名**:
   - HTML: `<id>.html`
   - PDF: `<id>.pdf`
@@ -235,27 +232,27 @@ https://example.com
 
 - 取得: Obsidian の `requestUrl`（想定）
 - 保存: `app.vault.adapter` でフォルダ作成と `write`（html）
-- 対象ノート:
-  - `MarkdownView` を取得し、本文を取得して抽出
+- 対象ノート: プラグインが作成した `TFile` を引き回す
 
 #### Implementation plan (MVP)
 
-1. Active noteから `url_01` を抽出（エディタの未保存内容を優先）
-2. arXiv URL から arXiv ID を抽出（末尾 `vN`・末尾スラッシュ等を許容）
-3. `https://arxiv.org/html/<id>` と `https://arxiv.org/pdf/<id>` を取得
-4. 保存先 `path/to/{noteBaseName}/` を作成（無ければ）
-5. `{noteBaseName}/<id>.html` と `{noteBaseName}/<id>.pdf` を常に上書き保存
-6. `Notice` で開始/完了/失敗を通知（片方失敗でも成功分は保存）
+1. コマンドパレットから `Create paper note from arXiv URL` を実行
+2. Prompt で arXiv URL を入力
+3. テンプレートを読み込み、`{{url}}`（必須）と `{{date}}`/`{{time}}` を置換
+4. Vault ルートに新規ノートを一時名で作成
+5. `title_extractor` でタイトル取得→ノートをリネーム
+6. `paper_fetcher` で HTML/PDF を `{noteBaseName}/<id>.{html,pdf}` に保存
+7. `summary_generator` で HTML を要約してノート末尾へ挿入/置換
 
 ### title_extractor
 
 #### 目的
-- 論文タイトルを取得して、元ノートのファイル名を更新する（ファイル名リネーム）
+- 論文タイトルを取得して、対象ノートのファイル名を更新する（ファイル名リネーム）
 
 #### UX
-- 機能のアクティベーションは、paper_extractor共通のリボンアイコンで実行
-- title_extractor を先に実行し、成功した場合のみ paper_fetcher に進む
-- 通知は、paper_extractor共通の通知で行う
+- title_extractor は単独起動しない（コマンド `Create paper note from arXiv URL` の内部で実行される）
+- 実行順序は `title_extractor` → `paper_fetcher` → `summary_generator`
+- 通知は `Notice`（英語）で行う
 
 #### 機能詳細
 - タイトル取得は `https://arxiv.org/abs/<id>` のメタタグ（`citation_title`）のみを参照する
@@ -278,7 +275,7 @@ https://example.com
 
 #### リネーム
 
-- 事前検査が全て通った場合にのみ、元ノートを `newTitle.md` にリネームする
+- 事前検査が全て通った場合にのみ、対象ノートを `newTitle.md` にリネームする
 
 #### 競合懸念（添付管理プラグインとの整合）
 
@@ -291,12 +288,12 @@ https://example.com
   - 同名の添付が発生した場合、サフィックス（例: `foo 1.jpg`）で別名保存される
 
 #### 準正常系
-- メタタグが見つからない、取得できないなどの場合は、エラー通知し、元ノートのタイトルは変更しない
+- メタタグが見つからない、取得できないなどの場合は、エラー通知し、対象ノートのタイトルは変更しない
 
 ### summary_generator
 
 #### 目的
-- 論文を要約して、元ノートの下に追記する
+- 論文を要約して、対象ノートの下に追記する
 
 #### 状態
 - 実装済み
@@ -304,7 +301,7 @@ https://example.com
 
 #### 実行トリガー（統合）
 
-- `summary_generator` は単独コマンドではなく、既存コマンド `Fetch arXiv (HTML/PDF) from active note` の処理末尾に統合する
+- `summary_generator` は単独コマンドではなく、コマンド `Create paper note from arXiv URL` の処理末尾に統合する
   - 実行順序は `title_extractor` → `paper_fetcher` → `summary_generator`
   - 途中で失敗した場合は、その時点で中断する（後続処理は実行しない）
 
@@ -422,9 +419,10 @@ OPENAI_MODEL="gpt-5.2"
 
 ## 開発指針
 
-### 実装着手条件
+### メンテナンス方針
 
-- この文書（`dev_memo.md`）のMVP仕様が合意できた後、**ユーザが「実装を開始して良い」と明示した時点**でコード変更に入る。
+- 仕様変更時は `dev_memo.md` を更新してから実装に入る
+- 破壊的変更（起動方法、URL取得方法、ノート生成方法、テンプレ仕様、ログ仕様など）の場合は、既存ユーザ向けの移行手順を併記する
 
 ### デプロイ手順（手動インストール / ローカル）
 
@@ -440,136 +438,6 @@ OPENAI_MODEL="gpt-5.2"
    - **Settings → Community plugins** で `paper_extractor` を有効化
 4. 反映
    - `main.js` を更新したら、Obsidian をリロード（アプリ再起動 or コマンドでリロード）
-
-## 開発進捗
-
-- [x] `paper_fetcher` 実装
-- [x] `title_extractor` 実装
-  - [x] 要件整理
-  - [x] 実装
-  - [x] テスト
-- [x] 連打・並行実行防止（実行中フラグ）
-- [x] ログ（`.log`）の強制redaction（Git管理前提の事故防止）
-  - [x] `logger` 層での強制redaction（保存前のマスキング、失敗時は固定メッセージのみ）
-  - [x] エラー情報の保存を `formatErrorForLog`（`errorSummary`）へ統一
-  - [x] 合成データでのredaction検証（ダミーAPIキー/Authorizationが `***REDACTED***` になることを確認）
-  - [x] Vaultへデプロイ（`main.js` / `manifest.json` / `styles.css` を配置）
-- [x] `summary_generator` 実装
-  - [x] 要件整理
-  - [x] 実装
-  - [x] 通知英語化・定期Notice（3秒ごと）
-  - [ ] テスト
-- [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
-  - [x] セキュリティ（redaction強制）
-  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）
-
-## テスト
-
-- `title_extractor` のテスト
-- `summary_generator` のテスト（未実施）
-
-### 前提
-
-- Vault 内に `paper_extractor` を手動インストール済みであること
-- `main.js` を更新した場合は Obsidian をリロードして反映すること
-- Custom Attachment Location を利用している場合は、添付が `./{noteBaseName}/` 配下に作られる設定であること
-
-### テストケース: `title_extractor` 単体（成功）
-
-#### 手順
-
-1. 新規ノート `hoge.md` を作成する（テンプレ準拠）
-2. `###### url_01:` に arXiv のURLを設定する（例: `https://arxiv.org/abs/2601.05175`）
-3. ノートをアクティブにした状態で、コマンド `Fetch arXiv (HTML/PDF) from active note` もしくはリボンアイコンを実行する
-
-#### 期待結果
-
-- `citation_title` から抽出されたタイトルがノート名に反映され、`hoge.md` が `{newTitle}.md` にリネームされる
-- （Custom Attachment Location 利用時）対の添付ディレクトリ名も `./{newTitle}/` に追随して更新される
-- その後 `paper_fetcher` が実行され、`./{newTitle}/` 配下に `<id>.html` と `<id>.pdf` が保存される
-
-### テストケース: `citation_title` が取得できない（中断）
-
-#### 手順
-
-1. `###### url_01:` を arXiv 以外にする、もしくは arXiv の存在しないURLにする
-2. コマンド/リボンを実行する
-
-#### 期待結果
-
-- `Notice` に失敗理由が表示される
-- ノート名は変更されない
-- `paper_fetcher` は実行されない
-
-### テストケース: `/{newTitle}` が既に存在する（中断）
-
-#### 手順
-
-1. `hoge.md` を作成して `###### url_01:` を設定する
-2. 事前に、`hoge.md` と同階層に `/{newTitle}` と同名のフォルダを作成する
-   - `newTitle` は実行時にしか分からないため、一度実行して `Notice` のエラーに出たパスを使って再現してよい
-3. コマンド/リボンを実行する
-
-#### 期待結果
-
-- `Notice` で `Target folder already exists: ...` が表示される
-- ノート名は変更されない（副作用ゼロ）
-- `paper_fetcher` は実行されない
-
-### テストケース: `newTitle.md` が既に存在する（中断）
-
-#### 手順
-
-1. `hoge.md` を作成して `###### url_01:` を設定する
-2. 事前に、`hoge.md` と同階層に `{newTitle}.md` を作成する
-3. コマンド/リボンを実行する
-
-#### 期待結果
-
-- `Notice` で `Target note already exists: ...` が表示される
-- ノート名は変更されない（副作用ゼロ）
-- `paper_fetcher` は実行されない
-
-### テストケース: タイトル正規化（禁止文字置換）
-
-#### 手順
-
-1. `citation_title` に禁止文字を含み得る論文（例: `:` や `?` を含むタイトル）を選び、`###### url_01:` を設定する
-2. コマンド/リボンを実行する
-
-#### 期待結果
-
-- 禁止文字が `_` に置換された形で `{newTitle}.md` が作られる
-- `newTitle` が空にならない限り成功する
-
-
-### テストケース: `summary_generator` 全体（成功）
-
-#### 前提
-
-- `.env` に `OPENAI_API_KEY` と `OPENAI_MODEL` が設定されていること
-- Vault内にシステムプロンプトファイルが存在すること（設定で指定したパス）
-
-#### 手順
-
-1. 新規ノートをテンプレ準拠で作成し、arXiv URLを `###### url_01:` に設定する
-2. `Fetch arXiv (HTML/PDF) from active note` を実行する
-3. OpenAI応答待ちの間、3秒ごとに `AI response waiting...` が表示されることを確認する
-
-#### 期待結果
-
-- ノート末尾に要約ブロックが挿入される（マーカーで囲まれる）
-- 再実行時は既存ブロックが置換される
-- ログに `result=OK summaryChars=<文字数>` が記録される
-
-### テストケース: `summary_generator` 失敗パターン
-
-- **HTMLなし**: `result=NG reason=HTML_MISSING`
-- **プロンプトなし**: `result=NG reason=PROMPT_READ_FAILED`
-- **.envなし**: `result=NG reason=ENV_READ_FAILED`
-- **APIキーなし**: `result=NG reason=OPENAI_API_KEY_MISSING`
-- **OpenAIリクエスト失敗**: `result=NG reason=OPENAI_REQUEST_FAILED`
-- **ノート削除/移動**: `result=NG reason=NOTE_MOVED_OR_DELETED`
 
 ## 実装計画（仕様変更：コマンド起動・URL入力・新規ノート・テンプレ適用）
 
@@ -687,3 +555,52 @@ OPENAI_MODEL="gpt-5.2"
 - 旧API呼び出しの残存がないか（`extractAndRenameActiveNoteTitle` など）
 - `templatePath` のバリデーションと `{{url}}` 検証が実装済みか
 - 新フロー開始時に `logDir` / `templatePath` の必須チェックを行っているか
+
+## 実装検討: 外部呼び出し（API公開）
+
+ユーザ操作（コマンドパレット）に加えて、他プラグインやコンソール等から本プラグインの処理を呼び出せるようにする。
+
+### 目的
+
+- 他プラグインから arXiv URL を渡してノート作成+処理を実行したい
+- Console / Templater 等から手動で実行できるようにしたい
+
+### 想定する公開方法
+
+- `app.plugins.getPlugin("paper_extractor")` でプラグインインスタンスを取得し、公開メソッドを呼び出す
+- 必要に応じて `window` へ公開（Console等からアクセスしやすい）
+  - ただし公開範囲が広くなるため、既定では無効（設定で opt-in を検討）
+
+### 公開するAPI（案）
+
+- `createPaperNoteFromUrl(url: string): Promise<string>`
+  - コマンド `Create paper note from arXiv URL` と同等の処理を実行
+  - 戻り値は作成したノートのパス（またはファイル名）
+
+### 前提/注意点
+
+- プラグインが無効な場合/未インストールの場合を考慮し、呼び出し側は存在チェックが必須
+- 実行中フラグのロジックは外部呼び出しでも共通化する（二重実行防止）
+- 外部呼び出し経由でもログ/Noticeの整合を保つ
+
+## 開発進捗
+
+- [x] `paper_fetcher` 実装
+- [x] `title_extractor` 実装
+  - [x] 要件整理
+  - [x] 実装
+  - [x] テスト
+- [x] 連打・並行実行防止（実行中フラグ）
+- [x] ログ（`.log`）の強制redaction（Git管理前提の事故防止）
+  - [x] `logger` 層での強制redaction（保存前のマスキング、失敗時は固定メッセージのみ）
+  - [x] エラー情報の保存を `formatErrorForLog`（`errorSummary`）へ統一
+  - [x] 合成データでのredaction検証（ダミーAPIキー/Authorizationが `***REDACTED***` になることを確認）
+  - [x] Vaultへデプロイ（`main.js` / `manifest.json` / `styles.css` を配置）
+- [x] `summary_generator` 実装
+  - [x] 要件整理
+  - [x] 実装
+  - [x] 通知英語化・定期Notice（3秒ごと）
+  - [ ] テスト
+- [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
+  - [x] セキュリティ（redaction強制）
+  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）
