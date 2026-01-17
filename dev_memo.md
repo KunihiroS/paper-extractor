@@ -652,3 +652,38 @@ OPENAI_MODEL="gpt-5.2"
    - 一時名規則の明記（`untitled_<timestamp>.md`）
    - テンプレ未設定時のUX（Notice表示/エラー処理）
    - 既存ユーザへの移行ガイドの提供（ドキュメント/Notice）
+
+## コードレビュワー向け：今回の修正要点
+
+### 変更の狙い
+
+- 既存の「アクティブノート + url_01」前提のフローを廃止し、**URL入力 + 新規ノート作成 + テンプレ適用**に刷新
+- リボン起動・サンプルUIを削除し、**コマンドパレット起動のみ**に統一
+
+### 主な改修点（ファイル別）
+
+- `src/main.ts`
+  - 新コマンド `Create paper note from arXiv URL` を追加
+  - URL入力Prompt → テンプレ読み込み/`{{url}}` 置換 → 新規ノート作成（Vaultルート）
+  - title_extractor → paper_fetcher → summary_generator の順で連結実行
+  - リボン/サンプルコマンド/ステータスバー/interval を削除
+- `src/note.ts`
+  - `{{url}}` 注入ユーティリティ追加
+  - `extractUrl01FromNoteBody` を `@deprecated`
+- `src/title_extractor.ts`
+- `src/paper_fetcher.ts`
+- `src/summary_generator.ts`
+  - いずれも **TFile + inputUrl 引数化**（アクティブノート依存を除去）
+- `src/settings.ts`
+  - `templatePath` 設定追加（Vault内パス・必須）
+
+### 仕様/UXの注意点
+
+- テンプレ未設定/`{{url}}` 不在時は **即中断 + Notice**
+- 新規ノート名は `untitled_<timestamp>.md`（衝突回避）
+
+### 主要ファイル差分の確認ポイント
+
+- 旧API呼び出しの残存がないか（`extractAndRenameActiveNoteTitle` など）
+- `templatePath` のバリデーションと `{{url}}` 検証が実装済みか
+- 新フロー開始時に `logDir` / `templatePath` の必須チェックを行っているか
