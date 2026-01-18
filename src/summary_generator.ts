@@ -200,14 +200,21 @@ export async function generateSummary(
 			return;
 		}
 
+		const envModel = env.OPENAI_MODEL?.trim() ?? '';
+		if (envModel.length === 0) {
+			reason = 'OPENAI_MODEL_EMPTY_SKIP';
+			result = 'OK';
+			new Notice('OPENAI_MODEL is empty in .env. Skipping AI request.');
+			return;
+		}
+		model = envModel;
+
 		const apiKey = env.OPENAI_API_KEY?.trim() ?? '';
 		if (apiKey.length === 0) {
 			reason = 'OPENAI_API_KEY_MISSING';
 			new Notice('OPENAI_API_KEY is missing in .env.');
 			return;
 		}
-
-		model = (env.OPENAI_MODEL?.trim() || 'gpt-4o-mini');
 
 		new Notice('(3/4) requesting AI');
 		new Notice('AI response waiting... (Do not delete/move the note until completion)');
@@ -276,7 +283,7 @@ export async function generateSummary(
 			await endLogBlock(
 				app,
 				logBlock,
-				`result=OK htmlPath=${htmlPath} model=${model} summaryChars=${summaryChars}`
+				`result=OK reason=${reason || 'OK'} htmlPath=${htmlPath} model=${model} summaryChars=${summaryChars}`
 			);
 		} else {
 			const errorPart = errorName.length > 0 || errorCode.length > 0 || errorSummary.length > 0

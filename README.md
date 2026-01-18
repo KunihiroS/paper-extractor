@@ -41,7 +41,9 @@ Open **Settings → Community plugins → paper_extractor**.
 # Required
 OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-# Optional (default: gpt-5.2)
+# Optional
+# - If empty or missing: summary generation is disabled (no AI request is sent)
+# - Otherwise: used as the model name
 OPENAI_MODEL="gpt-5.2"
 ```
 
@@ -104,7 +106,9 @@ Then downloaded files are saved to:
   - Verify the template path exists and is Vault-relative (not absolute).
 - **Summary generation fails**
   - Verify `systemPromptPath` (Vault path) exists.
-  - Verify `envPath` (absolute path) exists and contains `OPENAI_API_KEY`.
+  - Verify `envPath` (absolute path) exists.
+  - If you want summary generation enabled, set `OPENAI_MODEL` and `OPENAI_API_KEY` in `.env`.
+  - If `OPENAI_MODEL` is empty, the plugin skips the AI request by design.
 - **"Already running"**
   - The plugin prevents concurrent runs. Wait for the current run to finish.
 
