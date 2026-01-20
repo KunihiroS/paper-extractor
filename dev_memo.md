@@ -601,9 +601,23 @@ OPENAI_MODEL="gpt-5.2"
   - [x] 実装
   - [x] 通知英語化・定期Notice（3秒ごと）
   - [ ] テスト
-- [ ] ログ補強（`summary_generator` 開発時にまとめて実施）
+- [ ] OpenAI API `/v1/responses` へのマイグレーション
+  - [ ] `/v1/responses` API 仕様調査（リクエスト/レスポンス形式）
+  - [ ] `callOpenAiResponses()` 実装（`/v1/chat/completions` とは別関数）
+  - [ ] エンドポイント自動選択（モデルに応じたフォールバック or 設定）
+  - [ ] `/v1/chat/completions` 廃止（将来的に `/v1/responses` へ統一）
+  - 背景: `gpt-5.1-codex-mini` 等の新モデルは `/v1/responses` のみ対応
+- [ ] AIプロバイダ層の分離（設計思想の実装）
+  - [ ] `LlmProvider` interface 定義（`summarize(input) -> text`）
+  - [ ] `OpenAiChatProvider` 実装（`/v1/chat/completions` 用）
+  - [ ] `OpenAiResponsesProvider` 実装（`/v1/responses` 用）
+  - [ ] `createProvider(settings)` factory 実装
+  - [ ] `summary_generator` から LLM 呼び出しロジックを分離し `LlmProvider` に依存
+  - [ ] 将来の拡張: `GeminiProvider` 等の追加を容易にする
+  - 背景: 現状は `summary_generator.ts` にOpenAI呼び出しがベタ書きされており設計思想が未実装
+- [x] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
-  - [ ] 追跡性の追加（summary_generator向けの reason 設計、HTTP非2xx時の補足情報など）  
+  - [x] 追跡性の追加（OpenAI APIエラー時の詳細情報: `type`, `code`, `message` をログ出力）  
 - [ ] メタ情報の充実化
   - [ ] プレースホルダ（オプション）
     - `{{author}}`（著者）
