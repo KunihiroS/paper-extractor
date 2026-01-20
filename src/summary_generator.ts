@@ -69,24 +69,64 @@ async function callOpenAiChatCompletion(params: {
 	systemPrompt: string;
 	userContent: string;
 }): Promise<string> {
-	const resp = await requestUrl({
-		url: 'https://api.openai.com/v1/chat/completions',
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${params.apiKey}`,
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			model: params.model,
-			messages: [
-				{role: 'system', content: params.systemPrompt},
-				{role: 'user', content: params.userContent},
-			],
-		}),
-	});
+	let resp;
+	try {
+		resp = await requestUrl({
+			url: 'https://api.openai.com/v1/chat/completions',
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${params.apiKey}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				model: params.model,
+				messages: [
+					{role: 'system', content: params.systemPrompt},
+					{role: 'user', content: params.userContent},
+				],
+			}),
+			throw: false, // Don't throw on non-2xx, return response instead
+		});
+	} catch (e) {
+		// Extract error details from Obsidian's requestUrl exception
+		const err = e as {status?: number; message?: string; text?: string; json?: unknown};
+		let errorDetail = '';
+		const status = err.status ?? 'EXCEPTION';
+		
+		// Try to extract OpenAI error from various possible locations
+		try {
+			let errorJson: {error?: {message?: string; type?: string; code?: string}} | null = null;
+			if (err.json && typeof err.json === 'object') {
+				errorJson = err.json as {error?: {message?: string; type?: string; code?: string}};
+			} else if (err.text) {
+				errorJson = JSON.parse(err.text);
+			}
+			if (errorJson?.error) {
+				const oe = errorJson.error;
+				errorDetail = ` type=${oe.type ?? ''} code=${oe.code ?? ''} message=${oe.message ?? ''}`;
+			}
+		} catch {
+			// If we can't parse, include raw message
+			if (err.message) {
+				errorDetail = ` rawMessage=${err.message}`;
+			}
+		}
+		throw new Error(`OPENAI_REQUEST_FAILED status=${status}${errorDetail}`);
+	}
 
 	if (resp.status < 200 || resp.status >= 300) {
-		throw new Error(`OPENAI_REQUEST_FAILED status=${resp.status}`);
+		// Extract error details from OpenAI response
+		let errorDetail = '';
+		try {
+			const errorJson = resp.json as {error?: {message?: string; type?: string; code?: string}};
+			if (errorJson?.error) {
+				const e = errorJson.error;
+				errorDetail = ` type=${e.type ?? ''} code=${e.code ?? ''} message=${e.message ?? ''}`;
+			}
+		} catch {
+			// ignore parse errors
+		}
+		throw new Error(`OPENAI_REQUEST_FAILED status=${resp.status}${errorDetail}`);
 	}
 
 	const json = resp.json as any;
