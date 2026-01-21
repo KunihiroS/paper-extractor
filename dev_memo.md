@@ -600,7 +600,7 @@ OPENAI_MODEL="gpt-5.2"
   - [x] 要件整理
   - [x] 実装
   - [x] 通知英語化・定期Notice（3秒ごと）
-  - [ ] テスト
+  - [x] テスト
 - [ ] OpenAI API `/v1/responses` へのマイグレーション
   - [ ] `/v1/responses` API 仕様調査（リクエスト/レスポンス形式）
   - [ ] `callOpenAiResponses()` 実装（`/v1/chat/completions` とは別関数）
