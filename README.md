@@ -34,18 +34,43 @@ Open **Settings → Community plugins → paper_extractor**.
 - **.env path (absolute path)** (`envPath`)
   - Required for `summary_generator`.
   - Example: `/home/you/.config/paper_extractor/.env`
+- **Summary enabled** (`summaryEnabled`)
+  - Default: `true`
+  - If disabled, `summary_generator` is skipped.
 
 `.env` file example:
 
 ```dotenv
-# Required
+# Select the LLM provider (required to run summary generation)
+# - "openai" or "gemini"
+LLM_PROVIDER="gemini"
+
+########################################
+# Gemini (Google AI Studio API Key)
+########################################
+
+# Required when LLM_PROVIDER="gemini"
+GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
+# Required when LLM_PROVIDER="gemini"
+GEMINI_MODEL="gemini-3-flash-preview"
+
+########################################
+# OpenAI
+########################################
+
+# Required when LLM_PROVIDER="openai"
 OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-# Optional
-# - If empty or missing: summary generation is disabled (no AI request is sent)
-# - Otherwise: used as the model name
+# If empty or missing: summary generation is skipped by design
 OPENAI_MODEL="gpt-5.2"
 ```
+
+Summary generation behavior (semi-normal cases):
+
+- If `summaryEnabled` is disabled in Settings: summary generation is skipped by design.
+- If `LLM_PROVIDER` is missing in `.env`: summary generation does not run (and the run is recorded as `result=NG` in logs).
+- If `LLM_PROVIDER="openai"` and `OPENAI_MODEL` is empty: the plugin skips the OpenAI request by design.
 
 ## Template format
 
@@ -107,15 +132,15 @@ Then downloaded files are saved to:
 - **Summary generation fails**
   - Verify `systemPromptPath` (Vault path) exists.
   - Verify `envPath` (absolute path) exists.
-  - If you want summary generation enabled, set `OPENAI_MODEL` and `OPENAI_API_KEY` in `.env`.
-  - If `OPENAI_MODEL` is empty, the plugin skips the AI request by design.
+  - Verify `summaryEnabled` and `.env` settings.
+  - See "Summary generation behavior (semi-normal cases)" above.
 - **"Already running"**
   - The plugin prevents concurrent runs. Wait for the current run to finish.
 
 ## Security & privacy
 
 - API keys must not be stored inside the Vault.
-- The plugin reads OpenAI credentials from an external `.env` file.
+- The plugin reads LLM credentials from an external `.env` file.
 - Logs enforce redaction to avoid accidentally writing secrets into files.
 
 ## Development

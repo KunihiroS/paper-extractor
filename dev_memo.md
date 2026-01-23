@@ -634,3 +634,5 @@ OPENAI_MODEL="gpt-5.2"
   - [x] `dev_memo.md` を現行フロー（コマンド起動・URL入力・新規ノート・テンプレ適用）に合わせて整理
   - [x] 外部呼び出し（API公開）機能の実装検討セクションを追加
   - [x] `README.md` を現行仕様に合わせて英語で刷新
+  - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
+  - [x] Troubleshooting の冗長な重複説明を簡潔化
