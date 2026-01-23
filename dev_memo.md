@@ -610,6 +610,7 @@ OPENAI_MODEL="gpt-5.2"
 - [x] AIプロバイダ層の分離（設計思想の実装）
   - [x] `LlmProvider` interface 定義（`summarize(input) -> text`）
   - [x] `OpenAiChatProvider` 実装（`/v1/chat/completions` 用）
+  - [x] `GeminiProvider` 実装（Gemini API `generateContent` 用）
   - [ ] `OpenAiResponsesProvider` 実装（`/v1/responses` 用）
   - [x] `createProvider(settings)` factory 実装
   - [x] `summary_generator` から LLM 呼び出しロジックを分離し `LlmProvider` に依存

@@ -2,6 +2,7 @@ import type {MyPluginSettings} from '../settings';
 import {readEnvFileOrThrow} from './env';
 import type {LlmProvider} from './types';
 import {OpenAiChatProvider} from './providers/openai_chat_provider';
+import {GeminiProvider} from './providers/gemini_provider';
 
 export type ProviderCreateResult =
 	| {status: 'disabled'; reason: string}
@@ -45,7 +46,12 @@ export async function createProvider(settings: MyPluginSettings): Promise<Provid
 		if (model.length === 0) {
 			throw new Error('GEMINI_MODEL_MISSING');
 		}
-		throw new Error('GEMINI_PROVIDER_NOT_IMPLEMENTED');
+		return {
+			status: 'enabled',
+			provider: new GeminiProvider(apiKey, model),
+			providerName: 'gemini',
+			model,
+		};
 	}
 
 	return {status: 'disabled', reason: 'LLM_PROVIDER_INVALID'};
