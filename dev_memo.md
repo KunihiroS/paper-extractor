@@ -607,13 +607,13 @@ OPENAI_MODEL="gpt-5.2"
   - [ ] エンドポイント自動選択（モデルに応じたフォールバック or 設定）
   - [ ] `/v1/chat/completions` 廃止（将来的に `/v1/responses` へ統一）
   - 背景: `gpt-5.1-codex-mini` 等の新モデルは `/v1/responses` のみ対応
-- [ ] AIプロバイダ層の分離（設計思想の実装）
-  - [ ] `LlmProvider` interface 定義（`summarize(input) -> text`）
-  - [ ] `OpenAiChatProvider` 実装（`/v1/chat/completions` 用）
+- [x] AIプロバイダ層の分離（設計思想の実装）
+  - [x] `LlmProvider` interface 定義（`summarize(input) -> text`）
+  - [x] `OpenAiChatProvider` 実装（`/v1/chat/completions` 用）
   - [ ] `OpenAiResponsesProvider` 実装（`/v1/responses` 用）
-  - [ ] `createProvider(settings)` factory 実装
-  - [ ] `summary_generator` から LLM 呼び出しロジックを分離し `LlmProvider` に依存
-  - [ ] 将来の拡張: `GeminiProvider` 等の追加を容易にする
+  - [x] `createProvider(settings)` factory 実装
+  - [x] `summary_generator` から LLM 呼び出しロジックを分離し `LlmProvider` に依存
+  - [x] 将来の拡張: `GeminiProvider` 等の追加を容易にする
   - 背景: 現状は `summary_generator.ts` にOpenAI呼び出しがベタ書きされており設計思想が未実装
 - [x] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
@@ -628,6 +628,7 @@ OPENAI_MODEL="gpt-5.2"
 - [ ] 外部連携（API公開）
   - [x] 実装方針の記載（dev_memo の「実装検討: 外部呼び出し（API公開）」）
   - [ ] 実装（公開メソッド/API surface）
+- [ ] 既存の添付ディレクトリがある場合は中断せず、内部ファイルを上書きする
 - [x] ドキュメント更新
   - [x] `dev_memo.md` を現行フロー（コマンド起動・URL入力・新規ノート・テンプレ適用）に合わせて整理
   - [x] 外部呼び出し（API公開）機能の実装検討セクションを追加

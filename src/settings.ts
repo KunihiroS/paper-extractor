@@ -6,13 +6,15 @@ export interface MyPluginSettings {
 	systemPromptPath: string;
 	envPath: string;
 	templatePath: string;
+	summaryEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
 	logDir: '',
 	systemPromptPath: '',
 	envPath: '',
-	templatePath: ''
+	templatePath: '',
+	summaryEnabled: true,
 }
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -27,6 +29,16 @@ export class SampleSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('Summary enabled')
+			.setDesc('If disabled, summary_generator will not run.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.summaryEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.summaryEnabled = value;
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl)
 			.setName('Log directory (Vault path)')

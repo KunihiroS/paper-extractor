@@ -1,39 +1,11 @@
-import {App, Notice, TFile, normalizePath, requestUrl} from 'obsidian';
+import {App, Notice, TFile, normalizePath} from 'obsidian';
 import {extractArxivIdFromUrl} from './arxiv';
 import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
 import type {MyPluginSettings} from './settings';
-import * as fs from 'fs/promises';
+import {createProvider} from './llm/createProvider';
 
 const SUMMARY_START_MARKER = '<!-- paper_extractor:summary:start -->';
 const SUMMARY_END_MARKER = '<!-- paper_extractor:summary:end -->';
-
-type EnvVars = {
-	OPENAI_API_KEY?: string;
-	OPENAI_MODEL?: string;
-};
-
-function parseDotEnv(content: string): EnvVars {
-	const vars: Record<string, string> = {};
-	const lines = content.split(/\r?\n/);
-	for (const raw of lines) {
-		const line = raw.trim();
-		if (line.length === 0) continue;
-		if (line.startsWith('#')) continue;
-		const idx = line.indexOf('=');
-		if (idx <= 0) continue;
-		const key = line.slice(0, idx).trim();
-		let value = line.slice(idx + 1).trim();
-		if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-			value = value.slice(1, -1);
-		}
-		if (key.length === 0) continue;
-		vars[key] = value;
-	}
-	return {
-		OPENAI_API_KEY: vars.OPENAI_API_KEY,
-		OPENAI_MODEL: vars.OPENAI_MODEL,
-	};
-}
 
 function buildSummaryBlock(summaryMarkdown: string): string {
 	return `${SUMMARY_START_MARKER}\n\n${summaryMarkdown}\n\n${SUMMARY_END_MARKER}`;
@@ -50,91 +22,6 @@ function upsertSummaryBlock(noteText: string, summaryMarkdown: string): string {
 
 	const suffix = noteText.endsWith('\n') ? '\n' : '\n\n';
 	return `${noteText}${suffix}${block}`;
-}
-
-async function readEnvFileOrThrow(envPath: string): Promise<EnvVars> {
-	let content: string;
-	try {
-		content = await fs.readFile(envPath, 'utf-8');
-	} catch (e) {
-		const info = formatErrorForLog(e);
-		throw new Error(`ENV_READ_FAILED ${info.errorName} ${info.errorSummary}`);
-	}
-	return parseDotEnv(content);
-}
-
-async function callOpenAiChatCompletion(params: {
-	apiKey: string;
-	model: string;
-	systemPrompt: string;
-	userContent: string;
-}): Promise<string> {
-	let resp;
-	try {
-		resp = await requestUrl({
-			url: 'https://api.openai.com/v1/chat/completions',
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${params.apiKey}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				model: params.model,
-				messages: [
-					{role: 'system', content: params.systemPrompt},
-					{role: 'user', content: params.userContent},
-				],
-			}),
-			throw: false, // Don't throw on non-2xx, return response instead
-		});
-	} catch (e) {
-		// Extract error details from Obsidian's requestUrl exception
-		const err = e as {status?: number; message?: string; text?: string; json?: unknown};
-		let errorDetail = '';
-		const status = err.status ?? 'EXCEPTION';
-		
-		// Try to extract OpenAI error from various possible locations
-		try {
-			let errorJson: {error?: {message?: string; type?: string; code?: string}} | null = null;
-			if (err.json && typeof err.json === 'object') {
-				errorJson = err.json as {error?: {message?: string; type?: string; code?: string}};
-			} else if (err.text) {
-				errorJson = JSON.parse(err.text);
-			}
-			if (errorJson?.error) {
-				const oe = errorJson.error;
-				errorDetail = ` type=${oe.type ?? ''} code=${oe.code ?? ''} message=${oe.message ?? ''}`;
-			}
-		} catch {
-			// If we can't parse, include raw message
-			if (err.message) {
-				errorDetail = ` rawMessage=${err.message}`;
-			}
-		}
-		throw new Error(`OPENAI_REQUEST_FAILED status=${status}${errorDetail}`);
-	}
-
-	if (resp.status < 200 || resp.status >= 300) {
-		// Extract error details from OpenAI response
-		let errorDetail = '';
-		try {
-			const errorJson = resp.json as {error?: {message?: string; type?: string; code?: string}};
-			if (errorJson?.error) {
-				const e = errorJson.error;
-				errorDetail = ` type=${e.type ?? ''} code=${e.code ?? ''} message=${e.message ?? ''}`;
-			}
-		} catch {
-			// ignore parse errors
-		}
-		throw new Error(`OPENAI_REQUEST_FAILED status=${resp.status}${errorDetail}`);
-	}
-
-	const json = resp.json as any;
-	const text = json?.choices?.[0]?.message?.content;
-	if (typeof text !== 'string' || text.trim().length === 0) {
-		throw new Error('OPENAI_RESPONSE_INVALID');
-	}
-	return text.trim();
 }
 
 export async function generateSummary(
@@ -162,12 +49,20 @@ export async function generateSummary(
 	let htmlPath: string = '';
 	let promptPath: string = '';
 	let model: string = '';
+	let providerName: string = '';
 	let summaryChars: number = 0;
 	let errorName: string = '';
 	let errorCode: string = '';
 	let errorSummary: string = '';
 
 	try {
+		if (settings.summaryEnabled === false) {
+			reason = 'SUMMARY_DISABLED_SKIP';
+			result = 'OK';
+			new Notice('Summary is disabled (Settings).');
+			return;
+		}
+
 		new Notice('(1/4) reading html');
 		const parentPath = noteFile.parent?.path ?? '';
 		const folderPath = normalizePath(parentPath ? `${parentPath}/${noteFile.basename}` : noteFile.basename);
@@ -177,7 +72,7 @@ export async function generateSummary(
 		const htmlExists = await adapter.exists(htmlPath);
 		if (!htmlExists) {
 			reason = 'HTML_MISSING';
-			new Notice('HTML file not found. Cannot generate summary.');
+			new Notice('HTML file not found. Cannot generate summary.', 10000);
 			return;
 		}
 
@@ -190,7 +85,7 @@ export async function generateSummary(
 			errorName = info.errorName;
 			errorCode = info.errorCode;
 			errorSummary = info.errorSummary;
-			new Notice('Failed to read HTML.');
+			new Notice('Failed to read HTML.', 10000);
 			return;
 		}
 
@@ -198,12 +93,12 @@ export async function generateSummary(
 		promptPath = settings.systemPromptPath?.trim() ?? '';
 		if (promptPath.length === 0) {
 			reason = 'PROMPT_READ_FAILED';
-			new Notice('systemPromptPath is required (Settings).');
+			new Notice('systemPromptPath is required (Settings).', 10000);
 			return;
 		}
 		if (promptPath.startsWith('/') || promptPath.startsWith('~')) {
 			reason = 'PROMPT_PATH_INVALID';
-			new Notice('systemPromptPath must be a Vault-relative path (not absolute).');
+			new Notice('systemPromptPath must be a Vault-relative path (not absolute).', 10000);
 			return;
 		}
 
@@ -216,45 +111,44 @@ export async function generateSummary(
 			errorName = info.errorName;
 			errorCode = info.errorCode;
 			errorSummary = info.errorSummary;
-			new Notice('Failed to read system prompt.');
+			new Notice('Failed to read system prompt.', 10000);
 			return;
 		}
 
-		const envPath = settings.envPath?.trim() ?? '';
-		if (envPath.length === 0) {
-			reason = 'ENV_READ_FAILED';
-			new Notice('envPath is required (Settings).');
-			return;
-		}
-
-		let env: EnvVars;
+		let providerResult;
 		try {
-			env = await readEnvFileOrThrow(envPath);
+			providerResult = await createProvider(settings);
 		} catch (e) {
-			reason = 'ENV_READ_FAILED';
+			reason = e instanceof Error ? e.message : 'PROVIDER_CREATE_FAILED';
 			const info = formatErrorForLog(e);
 			errorName = info.errorName;
 			errorCode = info.errorCode;
 			errorSummary = info.errorSummary;
-			new Notice('Failed to read .env file.');
+			new Notice('LLM provider configuration error.', 10000);
 			return;
 		}
 
-		const envModel = env.OPENAI_MODEL?.trim() ?? '';
-		if (envModel.length === 0) {
-			reason = 'OPENAI_MODEL_EMPTY_SKIP';
-			result = 'OK';
-			new Notice('OPENAI_MODEL is empty in .env. Skipping AI request.');
+		if (providerResult.status === 'disabled') {
+			reason = providerResult.reason;
+			if (reason === 'OPENAI_MODEL_EMPTY_SKIP') {
+				result = 'OK';
+				new Notice('OPENAI_MODEL is empty in .env. Skipping AI request.');
+				return;
+			}
+			if (reason === 'ENV_PATH_MISSING') {
+				new Notice('envPath is required (Settings).', 10000);
+				return;
+			}
+			if (reason === 'LLM_PROVIDER_MISSING') {
+				new Notice('LLM_PROVIDER is required in .env.', 10000);
+				return;
+			}
+			new Notice('LLM provider is disabled.');
 			return;
 		}
-		model = envModel;
 
-		const apiKey = env.OPENAI_API_KEY?.trim() ?? '';
-		if (apiKey.length === 0) {
-			reason = 'OPENAI_API_KEY_MISSING';
-			new Notice('OPENAI_API_KEY is missing in .env.');
-			return;
-		}
+		providerName = providerResult.providerName;
+		model = providerResult.model;
 
 		new Notice('(3/4) requesting AI');
 		new Notice('AI response waiting... (Do not delete/move the note until completion)');
@@ -266,19 +160,17 @@ export async function generateSummary(
 			}, 3000);
 
 			const userContent = `You will be given HTML extracted from an arXiv paper. Summarize it in Japanese as Markdown.\n\n[HTML]\n${htmlText}`;
-			summary = await callOpenAiChatCompletion({
-				apiKey,
-				model,
+			summary = await providerResult.provider.summarize({
 				systemPrompt,
 				userContent,
 			});
 		} catch (e) {
-			reason = 'OPENAI_REQUEST_FAILED';
+			reason = `${providerName.toUpperCase()}_REQUEST_FAILED`;
 			const info = formatErrorForLog(e);
 			errorName = info.errorName;
 			errorCode = info.errorCode;
 			errorSummary = info.errorSummary;
-			new Notice('AI request failed.');
+			new Notice('AI request failed.', 10000);
 			return;
 		} finally {
 			if (waitNoticeInterval !== null) {
@@ -291,7 +183,7 @@ export async function generateSummary(
 		const latestFile = app.vault.getAbstractFileByPath(noteFile.path);
 		if (!(latestFile instanceof TFile)) {
 			reason = 'NOTE_MOVED_OR_DELETED';
-			new Notice('Target note was moved or deleted.');
+			new Notice('Target note was moved or deleted.', 10000);
 			return;
 		}
 
@@ -305,7 +197,7 @@ export async function generateSummary(
 			errorName = info.errorName;
 			errorCode = info.errorCode;
 			errorSummary = info.errorSummary;
-			new Notice('Failed to write note.');
+			new Notice('Failed to write note.', 10000);
 			return;
 		}
 
@@ -317,19 +209,19 @@ export async function generateSummary(
 		errorName = info.errorName;
 		errorCode = info.errorCode;
 		errorSummary = info.errorSummary;
-		new Notice('Summary generation failed.');
+		new Notice('Summary generation failed.', 10000);
 	} finally {
 		if (result === 'OK') {
 			await endLogBlock(
 				app,
 				logBlock,
-				`result=OK reason=${reason || 'OK'} htmlPath=${htmlPath} model=${model} summaryChars=${summaryChars}`
+				`result=OK reason=${reason || 'OK'} htmlPath=${htmlPath} provider=${providerName} model=${model} summaryChars=${summaryChars}`
 			);
 		} else {
 			const errorPart = errorName.length > 0 || errorCode.length > 0 || errorSummary.length > 0
 				? ` errorName=${errorName} errorCode=${errorCode} errorSummary=${errorSummary}`
 				: '';
-			await endLogBlock(app, logBlock, `result=NG reason=${reason || 'UNKNOWN'} htmlPath=${htmlPath} promptPath=${promptPath} model=${model}${errorPart}`);
+			await endLogBlock(app, logBlock, `result=NG reason=${reason || 'UNKNOWN'} htmlPath=${htmlPath} promptPath=${promptPath} provider=${providerName} model=${model}${errorPart}`);
 		}
 	}
 }
