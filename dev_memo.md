@@ -619,6 +619,9 @@ OPENAI_MODEL="gpt-5.2"
 - [x] ログ補強（`summary_generator` 開発時にまとめて実施）
   - [x] セキュリティ（redaction強制）
   - [x] 追跡性の追加（OpenAI APIエラー時の詳細情報: `type`, `code`, `message` をログ出力）  
+- [ ] Auto Tagging
+  - [ ] 仕様検討
+  - [ ] 実装
 - [ ] メタ情報の充実化
   - [ ] プレースホルダ（オプション）
     - `{{author}}`（著者）
