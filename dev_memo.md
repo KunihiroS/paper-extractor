@@ -621,6 +621,9 @@ OPENAI_MODEL="gpt-5.2"
   - [x] 追跡性の追加（OpenAI APIエラー時の詳細情報: `type`, `code`, `message` をログ出力）  
 - [ ] Auto Tagging
   - [ ] 仕様検討
+    - 要約文章から適切なタグをつける
+      - タグは `{{tags}}` プレースホルダで置換
+      - 参照ファイル(ex. tag_list.md)から適切なtagを選ぶ, 既存のタグから選ぶ, 新しいタグを作る
   - [ ] 実装
   - [ ] テスト
 - [ ] frontmatter追加
