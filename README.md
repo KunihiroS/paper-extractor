@@ -94,7 +94,7 @@ Template example:
 ---
 ```
 
-The summary is appended after the `---` line.
+The summary is written as a dedicated block delimited by markers and is **replaced on re-runs** (idempotent behavior). It is appended to the end of the note if no previous block exists.
 
 ### Note
 
@@ -114,6 +114,11 @@ Then downloaded files are saved to:
 - Files:
   - `<arxivId>.html`
   - `<arxivId>.pdf`
+
+Behavior when the folder already exists:
+
+- If the folder exists: the plugin continues and overwrites only the fetched files (`<arxivId>.html` / `<arxivId>.pdf`).
+- If the path exists but is not a folder: the run aborts.
 
 ### Logs
 
