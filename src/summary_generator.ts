@@ -4,6 +4,8 @@ import {endLogBlock, formatErrorForLog, startLogBlock} from './logger';
 import type {MyPluginSettings} from './settings';
 import {createProvider} from './llm/createProvider';
 
+// Summary is written as a replaceable block.
+// This keeps reruns idempotent (re-run replaces the previous summary instead of appending).
 const SUMMARY_START_MARKER = '<!-- paper_extractor:summary:start -->';
 const SUMMARY_END_MARKER = '<!-- paper_extractor:summary:end -->';
 
@@ -56,6 +58,8 @@ export async function generateSummary(
 	let errorSummary: string = '';
 
 	try {
+		// Skip policy: user can disable summarization explicitly via settings.
+		// In this case, it is treated as a successful run (result=OK) with a skip reason.
 		if (settings.summaryEnabled === false) {
 			reason = 'SUMMARY_DISABLED_SKIP';
 			result = 'OK';
@@ -129,6 +133,8 @@ export async function generateSummary(
 		}
 
 		if (providerResult.status === 'disabled') {
+			// `reason` is a short identifier intended for log searching/aggregation.
+			// User-facing detail is communicated via Notice.
 			reason = providerResult.reason;
 			if (reason === 'OPENAI_MODEL_EMPTY_SKIP') {
 				result = 'OK';

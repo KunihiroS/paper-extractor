@@ -4,6 +4,9 @@ function pad2(n: number): string {
 	return String(n).padStart(2, '0');
 }
 
+// Security invariant:
+// - Never write secrets (API keys, tokens, Authorization headers, etc.) to log files.
+// - All log output must pass through redaction. If redaction fails, suppress the original content.
 function redact(text: string): string {
 	let out = text;
 

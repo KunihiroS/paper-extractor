@@ -67,6 +67,10 @@ export async function extractAndRenameNoteTitle(
 		newNotePath = normalizePath(parentPath ? `${parentPath}/${newTitle}.md` : `${newTitle}.md`);
 		const newFolderPath = normalizePath(parentPath ? `${parentPath}/${newTitle}` : newTitle);
 
+		// Safety invariant:
+		// - Abort if the target note path already exists (avoid overwriting user content).
+		// - Do NOT abort if the attachment folder already exists; paper_fetcher will only overwrite fetched files.
+
 		const noteConflict = app.vault.getAbstractFileByPath(newNotePath);
 		if (noteConflict) {
 			throw new Error(`Target note already exists: ${newNotePath}`);

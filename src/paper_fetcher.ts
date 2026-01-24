@@ -34,6 +34,10 @@ export async function fetchAndSaveArxiv(
 	const adapter = app.vault.adapter;
 	let folderCreateError: unknown = null;
 	let folderReason: string = '';
+	// Attachment folder handling policy:
+	// - If the folder already exists, continue (do not abort).
+	// - If the path exists but is not a folder, abort (cannot write into it safely).
+	// - Only fetched files (<id>.html / <id>.pdf) are overwritten; other files are untouched.
 	try {
 		const folderExists = await adapter.exists(folderPath);
 		if (!folderExists) {

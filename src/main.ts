@@ -6,7 +6,10 @@ import {generateSummary} from './summary_generator';
 import {extractArxivIdFromUrl} from './arxiv';
 import {loadTemplateAndInjectUrl} from './note';
 
-// Remember to rename these classes and interfaces!
+// Entry point / orchestrator.
+// - This file wires the command + settings UI and runs the pipeline.
+// - Heavy logic lives in feature modules (title_extractor / paper_fetcher / summary_generator).
+// - `runExclusive` prevents concurrent runs to avoid race conditions and accidental data corruption.
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;

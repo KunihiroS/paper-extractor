@@ -1,6 +1,9 @@
 import {requestUrl} from 'obsidian';
 import type {LlmProvider, SummarizeParams} from '../types';
 
+// OpenAI Chat Completions provider.
+// - Keeps network/API details isolated from orchestration code.
+// - Never logs secrets; errors are surfaced via thrown Error messages for the caller to redact/log.
 export class OpenAiChatProvider implements LlmProvider {
 	constructor(
 		private readonly apiKey: string,

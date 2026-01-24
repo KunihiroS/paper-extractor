@@ -10,6 +10,9 @@ type GeminiGenerateContentResponse = {
 };
 
 export class GeminiProvider implements LlmProvider {
+	// Google AI Studio (API key) Gemini provider.
+	// - Uses REST generateContent endpoint.
+	// - Caller is responsible for handling errors + logging (with redaction).
 	constructor(
 		private readonly apiKey: string,
 		private readonly model: string

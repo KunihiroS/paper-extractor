@@ -8,6 +8,10 @@ export type ProviderCreateResult =
 	| {status: 'disabled'; reason: string}
 	| {status: 'enabled'; provider: LlmProvider; providerName: string; model: string};
 
+// Factory for LLM providers.
+// - Reads `.env` from settings.envPath (Vault-external) and selects the provider implementation.
+// - Returns {status:'disabled'} for non-fatal skip states (handled by caller with Notice/log reason).
+// - Throws only for hard misconfiguration (e.g. missing required API key/model for the selected provider).
 export async function createProvider(settings: MyPluginSettings): Promise<ProviderCreateResult> {
 	const envPath = settings.envPath?.trim() ?? '';
 	if (envPath.length === 0) {

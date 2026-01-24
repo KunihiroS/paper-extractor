@@ -11,6 +11,10 @@ export type EnvVars = {
 	GEMINI_MODEL?: string;
 };
 
+// Minimal .env parser.
+// - Supports KEY=VALUE lines (optional single/double quotes).
+// - Intentionally ignores advanced dotenv features to keep runtime small.
+// - The env file is expected to live outside the Vault (to avoid committing secrets).
 function parseDotEnv(content: string): Record<string, string> {
 	const vars: Record<string, string> = {};
 	const lines = content.split(/\r?\n/);
