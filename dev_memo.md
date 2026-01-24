@@ -622,6 +622,13 @@ OPENAI_MODEL="gpt-5.2"
 - [ ] Auto Tagging
   - [ ] 仕様検討
   - [ ] 実装
+  - [ ] テスト
+- [ ] frontmatter追加
+  - [ ] 仕様検討
+    - `frontmatter` プレースホルダ
+    - Enveloppe plugin との連携
+  - [ ] 実装
+  - [ ] テスト
 - [ ] メタ情報の充実化
   - [ ] プレースホルダ（オプション）
     - `{{author}}`（著者）
