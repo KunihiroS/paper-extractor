@@ -33,10 +33,17 @@ export async function fetchAndSaveArxiv(
 
 	const adapter = app.vault.adapter;
 	let folderCreateError: unknown = null;
+	let folderReason: string = '';
 	try {
 		const folderExists = await adapter.exists(folderPath);
 		if (!folderExists) {
 			await app.vault.createFolder(folderPath);
+		} else {
+			const stat = await adapter.stat(folderPath);
+			if (stat?.type !== 'folder') {
+				throw new Error(`Target folder path is not a folder: ${folderPath}`);
+			}
+			folderReason = 'FOLDER_ALREADY_EXISTS';
 		}
 	} catch (e) {
 		folderCreateError = e;
@@ -111,7 +118,7 @@ export async function fetchAndSaveArxiv(
 	await endLogBlock(
 		app,
 		logBlock,
-		`result=${htmlSaved || pdfSaved ? 'OK' : 'NG'} folderCreateError=${folderCreateError ? 'YES' : 'NO'} htmlUrl=${htmlUrl} htmlStatus=${htmlStatus} htmlSaved=${htmlSaved ? 'YES' : 'NO'} htmlReason=${htmlReason} htmlErrorName=${htmlErrorName} htmlErrorCode=${htmlErrorCode} htmlErrorSummary=${htmlErrorSummary} pdfUrl=${pdfUrl} pdfStatus=${pdfStatus} pdfSaved=${pdfSaved ? 'YES' : 'NO'} pdfReason=${pdfReason} pdfErrorName=${pdfErrorName} pdfErrorCode=${pdfErrorCode} pdfErrorSummary=${pdfErrorSummary}`
+		`result=${htmlSaved || pdfSaved ? 'OK' : 'NG'} folderReason=${folderReason} folderCreateError=${folderCreateError ? 'YES' : 'NO'} htmlUrl=${htmlUrl} htmlStatus=${htmlStatus} htmlSaved=${htmlSaved ? 'YES' : 'NO'} htmlReason=${htmlReason} htmlErrorName=${htmlErrorName} htmlErrorCode=${htmlErrorCode} htmlErrorSummary=${htmlErrorSummary} pdfUrl=${pdfUrl} pdfStatus=${pdfStatus} pdfSaved=${pdfSaved ? 'YES' : 'NO'} pdfReason=${pdfReason} pdfErrorName=${pdfErrorName} pdfErrorCode=${pdfErrorCode} pdfErrorSummary=${pdfErrorSummary}`
 	);
 
 	if (!htmlSaved && !pdfSaved) {

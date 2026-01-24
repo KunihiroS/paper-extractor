@@ -67,12 +67,6 @@ export async function extractAndRenameNoteTitle(
 		newNotePath = normalizePath(parentPath ? `${parentPath}/${newTitle}.md` : `${newTitle}.md`);
 		const newFolderPath = normalizePath(parentPath ? `${parentPath}/${newTitle}` : newTitle);
 
-		const adapter = app.vault.adapter;
-		const folderExists = await adapter.exists(newFolderPath);
-		if (folderExists) {
-			throw new Error(`Target folder already exists: ${newFolderPath}`);
-		}
-
 		const noteConflict = app.vault.getAbstractFileByPath(newNotePath);
 		if (noteConflict) {
 			throw new Error(`Target note already exists: ${newNotePath}`);
