@@ -175,6 +175,10 @@ export async function generateSummary(
 				// PageIndex-specific params (ignored by OpenAI/Gemini providers)
 				pdfUrl,
 				arxivId: id,
+				// Log callback for detailed progress (writes to log file, fire-and-forget)
+				log: (message: string) => {
+					void logBlock.write(message);
+				},
 			});
 		} catch (e) {
 			reason = `${providerName.toUpperCase()}_REQUEST_FAILED`;

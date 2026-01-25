@@ -97,6 +97,7 @@ export type LogBlock = {
 	logDir: string;
 	logPath: string;
 	runId: string;
+	write: (message: string) => Promise<void>;
 };
 
 export async function startLogBlock(app: App, logDir: string, startMessage: string): Promise<LogBlock> {
@@ -107,7 +108,15 @@ export async function startLogBlock(app: App, logDir: string, startMessage: stri
 	const fallback = `block=START runId=${runId} redact=FAILED message="Log redaction failed; original content suppressed."`;
 	const redactedMessage = safeRedact(`block=START runId=${runId} ${startMessage}`, fallback);
 	await appendTextFile(app, logPath, `${formatLogLine(redactedMessage, now)}\n`);
-	return {logDir, logPath, runId};
+
+	// Return block with write method for detailed logging
+	const write = async (message: string): Promise<void> => {
+		const fallback = `runId=${runId} redact=FAILED`;
+		const redacted = safeRedact(`runId=${runId} ${message}`, fallback);
+		await appendTextFile(app, logPath, `${formatLogLine(redacted)}\n`);
+	};
+
+	return {logDir, logPath, runId, write};
 }
 
 export async function endLogBlock(app: App, block: LogBlock, endMessage: string): Promise<void> {

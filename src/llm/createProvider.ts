@@ -60,16 +60,20 @@ export async function createProvider(settings: MyPluginSettings): Promise<Provid
 	}
 
 	if (env.LLM_PROVIDER === 'pageindex') {
-		// PageIndex uses MCP via stdio (mcp-remote handles OAuth automatically)
-		// Desktop only - requires child_process for stdio transport
+		// PageIndex uses HTTP API (https://api.pageindex.ai)
+		// Requires PAGEINDEX_API_KEY from https://dash.pageindex.ai/api-keys
+		const apiKey = env.PAGEINDEX_API_KEY?.trim() ?? '';
+		if (apiKey.length === 0) {
+			throw new Error('PAGEINDEX_API_KEY_MISSING');
+		}
 		if (!PageIndexProvider.isAvailable()) {
-			return {status: 'disabled', reason: 'PAGEINDEX_DESKTOP_ONLY'};
+			return {status: 'disabled', reason: 'PAGEINDEX_NOT_AVAILABLE'};
 		}
 		return {
 			status: 'enabled',
-			provider: new PageIndexProvider(),
+			provider: new PageIndexProvider(apiKey),
 			providerName: 'pageindex',
-			model: 'pageindex-mcp', // PageIndex doesn't expose model name
+			model: 'pageindex-chat',
 		};
 	}
 

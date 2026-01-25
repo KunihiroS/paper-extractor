@@ -9,6 +9,7 @@ export type EnvVars = {
 	OPENAI_MODEL?: string;
 	GEMINI_API_KEY?: string;
 	GEMINI_MODEL?: string;
+	PAGEINDEX_API_KEY?: string;
 };
 
 // Minimal .env parser.
@@ -59,5 +60,6 @@ export async function readEnvFileOrThrow(envPath: string): Promise<EnvVars> {
 		OPENAI_MODEL: vars.OPENAI_MODEL,
 		GEMINI_API_KEY: vars.GEMINI_API_KEY,
 		GEMINI_MODEL: vars.GEMINI_MODEL,
+		PAGEINDEX_API_KEY: vars.PAGEINDEX_API_KEY,
 	};
 }
