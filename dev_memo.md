@@ -669,7 +669,7 @@ OPENAI_MODEL="gpt-5.2"
   - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
   - [x] Troubleshooting の冗長な重複説明を簡潔化
 - [ ] Deep Research 機能（GPT Researcher 連携）
-  - 概要: 論文要約後、GPT Researcher MCP Server を呼び出して統合リサーチレポートを生成
+  - 概要: 論文要約後、GPT Researcher MCP Server https://github.com/assafelovic/gpt-researcher を呼び出して統合リサーチレポートを生成
   - 入力: 対象論文 PDF + 要約
   - 処理: Vault 内関連ノート検索 + Web 検索（関連論文、著者の他論文、引用関係等）
   - 出力: `{noteBaseName}/research_report.md`
