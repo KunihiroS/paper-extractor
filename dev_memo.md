@@ -655,3 +655,8 @@ OPENAI_MODEL="gpt-5.2"
   - [x] `README.md` を現行仕様に合わせて英語で刷新
   - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
   - [x] Troubleshooting の冗長な重複説明を簡潔化
+- [ ] PageIndexを組み込み
+  - [ ] 方針検討
+  - [ ] 設計
+  - [ ] 実装
+  - [ ] テスト
