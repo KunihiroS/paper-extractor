@@ -6,6 +6,12 @@ paper_extractor is an Obsidian plugin that helps you create a paper note from an
 - Downloads arXiv HTML/PDF and saves them next to the note.
 - Generates a summary and appends/replaces it in the note.
 
+Supports multiple LLM providers:
+
+- **OpenAI** (`/v1/chat/completions`)
+- **Gemini** (Google AI Studio)
+- **PageIndex** (MCP via mcp-remote, vectorless RAG for PDF - Desktop only)
+
 The plugin is designed to be used from the **Command Palette**.
 
 ## How it works
@@ -42,8 +48,18 @@ Open **Settings → Community plugins → paper_extractor**.
 
 ```dotenv
 # Select the LLM provider (required to run summary generation)
-# - "openai" or "gemini"
+# - "openai", "gemini", or "pageindex"
 LLM_PROVIDER="gemini"
+
+########################################
+# PageIndex (MCP via mcp-remote)
+########################################
+
+# When LLM_PROVIDER="pageindex":
+# - No API key required (OAuth authentication via browser)
+# - Desktop only (uses MCP stdio transport)
+# - First run opens browser for OAuth login
+# - Free tier: 1000 pages / unlimited queries
 
 ########################################
 # Gemini (Google AI Studio API Key)
@@ -71,6 +87,7 @@ Summary generation behavior (semi-normal cases):
 - If `summaryEnabled` is disabled in Settings: summary generation is skipped by design.
 - If `LLM_PROVIDER` is missing in `.env`: summary generation does not run (and the run is recorded as `result=NG` in logs).
 - If `LLM_PROVIDER="openai"` and `OPENAI_MODEL` is empty: the plugin skips the OpenAI request by design.
+- If `LLM_PROVIDER="pageindex"` on mobile: returns `PAGEINDEX_DESKTOP_ONLY` (MCP requires desktop).
 
 ## Template format
 
@@ -141,6 +158,11 @@ Behavior when the folder already exists:
   - See "Summary generation behavior (semi-normal cases)" above.
 - **"Already running"**
   - The plugin prevents concurrent runs. Wait for the current run to finish.
+- **PageIndex: Browser popup for OAuth**
+  - On first run with `LLM_PROVIDER="pageindex"`, a browser window opens for authentication.
+  - This is expected behavior (mcp-remote handles OAuth automatically).
+- **PageIndex: "PAGEINDEX_DESKTOP_ONLY"**
+  - PageIndex requires MCP stdio transport which is only available on desktop Obsidian.
 
 ## Security & privacy
 
@@ -190,8 +212,14 @@ Reload Obsidian and enable the plugin.
 
 ## Future development
 
+- **PageIndex Phase 2: Local OSS**
+  - When cloud free tier is exhausted, switch to local PageIndex OSS with your own LLM API key.
+  - Requires additional MCP server development.
 - **External API / programmatic invocation**
   - Expose a stable API surface so other plugins (and optionally the Console/Templater) can run the same workflow programmatically.
   - Example direction:
     - `app.plugins.getPlugin("paper_extractor")` and a public method like `createPaperNoteFromUrl(url)`.
     - Optional `window` exposure behind an opt-in setting.
+- **Deep Research (GPT Researcher)**
+  - After summarization, generate an integrated research report using GPT Researcher MCP Server.
+  - Search related notes in Vault + web search (related papers, citations, author's other work).

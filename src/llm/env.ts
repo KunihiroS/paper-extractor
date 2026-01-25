@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import {formatErrorForLog} from '../logger';
 
-export type LlmProviderName = 'openai' | 'gemini';
+export type LlmProviderName = 'openai' | 'gemini' | 'pageindex';
 
 export type EnvVars = {
 	LLM_PROVIDER?: LlmProviderName;
@@ -39,6 +39,7 @@ function coerceProviderName(value: string | undefined): LlmProviderName | undefi
 	const v = (value ?? '').trim().toLowerCase();
 	if (v === 'openai') return 'openai';
 	if (v === 'gemini') return 'gemini';
+	if (v === 'pageindex') return 'pageindex';
 	return undefined;
 }
 

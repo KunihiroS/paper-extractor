@@ -615,13 +615,14 @@ OPENAI_MODEL="gpt-5.2"
 
 ### 採用方針: 段階的アプローチ
 
-#### Phase 1: Remote MCP（今回実装）
+#### Phase 1: Remote MCP - ✅ 実装済み
 
 ```
-paper-extractor
-    ↓ MCP SDK (stdio)
+paper-extractor (main.js)
+    ↓ dynamic import('@modelcontextprotocol/sdk')
+    ↓ StdioClientTransport (child_process spawn)
 npx mcp-remote https://chat.pageindex.ai/mcp
-    ↓ OAuth 認証
+    ↓ OAuth 認証（初回のみブラウザポップアップ）
 PageIndex Cloud
     ↓ process_document(url="https://arxiv.org/pdf/{id}")
 PageIndex Cloud が arXiv から直接 PDF を取得して処理
@@ -632,7 +633,7 @@ PageIndex Cloud が arXiv から直接 PDF を取得して処理
 - **入力**: arXiv PDF URL（`https://arxiv.org/pdf/{id}`）を渡す
   - ローカル PDF アップロード不要（PageIndex Cloud が arXiv から直接取得）
 - **メリット**:
-  - 設定シンプル（OAuth 認証のみ）
+  - 設定シンプル（OAuth 認証のみ、トークン管理不要）
   - ローカルファイル操作不要
   - 1000ページ/無制限クエリの無料枠
 
@@ -693,16 +694,16 @@ PageIndex OSS + 自前 LLM API Key
 - `@modelcontextprotocol/sdk` - MCP クライアント SDK
 - `mcp-remote` は npx 経由で実行（依存追加不要）
 
-### 実装タスク（Phase 1）
+### 実装タスク（Phase 1）- ✅ 完了
 
-1. `@modelcontextprotocol/sdk` を dependencies に追加
-2. `PageIndexProvider` を `LlmProvider` interface で実装
-   - MCP クライアント生成（`mcp-remote` を spawn）
+1. ✅ `@modelcontextprotocol/sdk` を dependencies に追加
+2. ✅ `McpClient` 汎用クラス + `PageIndexProvider` を `LlmProvider` interface で実装
+   - MCP クライアント生成（`mcp-remote` を spawn、stdio + dynamic import 方式）
    - `process_document(url)` で PDF 登録 → `doc_id` 取得
    - `query_document(doc_id, query)` で要約取得
-3. `createProvider` factory に `pageindex` 分岐を追加
-4. 設定: `LLM_PROVIDER=pageindex`（`.env` で切替）
-5. OAuth 認証フロー確認（初回実行時のブラウザ認証）
+3. ✅ `createProvider` factory に `pageindex` 分岐を追加
+4. ✅ 設定: `LLM_PROVIDER=pageindex`（`.env` で切替）
+5. ⏳ OAuth 認証フロー確認（初回実行時のブラウザ認証）- 実環境テスト未実施
 
 ## 開発計画と進捗
 
@@ -764,44 +765,55 @@ PageIndex OSS + 自前 LLM API Key
   - [x] `README.md` を現行仕様に合わせて英語で刷新
   - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
   - [x] Troubleshooting の冗長な重複説明を簡潔化
-- [ ] PageIndexを組み込み
+- [x] PageIndexを組み込み（Phase 1: Remote MCP）
   - [x] 方針検討
   - [x] 設計
-  - [ ] 実装
-  - [ ] テスト
+  - [x] 実装（stdio + dynamic import 方式）
+    - [x] `@modelcontextprotocol/sdk` を dependencies に追加
+    - [x] `McpClient` 汎用クラス実装（`src/llm/mcp/mcp_client.ts`）
+    - [x] `PageIndexProvider` 実装（`src/llm/providers/pageindex_provider.ts`）
+    - [x] `createProvider` factory に `pageindex` 分岐追加
+    - [x] `SummarizeParams` に `pdfUrl`, `arxivId` 追加（`types.ts`）
+    - [x] `summary_generator.ts` で `pdfUrl` を渡すよう修正
+    - [x] esbuild 設定修正（`node:*` external + es2020 target）
+  - [ ] テスト（実環境での OAuth 認証フロー確認）
 
 ### PageIndex 統合設計
 
-#### 設計方針: インターフェース拡張（案A）
+#### 設計方針: インターフェース拡張（案A）- ✅ 採用・実装済み
 
 既存 `LlmProvider` インターフェースを拡張し、PageIndex 固有のパラメータをオプションで追加する。
 
 ```typescript
-// types.ts - 拡張版 SummarizeParams
+// types.ts - 実装済み
 export type SummarizeParams = {
   systemPrompt: string;
   userContent: string;
-  // PageIndex 用（オプション）
+  // PageIndex 用（オプション）- pdfUrl があれば PageIndex として処理
   pdfUrl?: string;
   arxivId?: string;
 };
+
+export interface LlmProvider {
+  summarize(params: SummarizeParams): Promise<string>;
+}
 ```
 
 - 既存プロバイダ（OpenAI, Gemini）: `systemPrompt` + `userContent` を使用（変更なし）
 - PageIndex: `pdfUrl` を使用し、`systemPrompt`/`userContent` は無視
 
-#### ファイル構成
+#### ファイル構成（✅ 実装済み）
 
 ```
 src/llm/
 ├── providers/
 │   ├── openai_chat_provider.ts  # 既存（変更なし）
 │   ├── gemini_provider.ts       # 既存（変更なし）
-│   └── pageindex_provider.ts    # 新規
+│   └── pageindex_provider.ts    # ✅ 新規: PageIndex LlmProvider
 ├── mcp/
-│   └── mcp_client.ts            # 新規: MCP クライアント（mcp-remote spawn）
-├── createProvider.ts            # factory に pageindex 追加
-├── types.ts                     # SummarizeParams 拡張
+│   └── mcp_client.ts            # ✅ 新規: 汎用 MCP クライアント（stdio + dynamic import）
+├── createProvider.ts            # ✅ factory に pageindex 追加済み
+├── types.ts                     # ✅ SummarizeParams に pdfUrl, arxivId 追加済み
 └── env.ts                       # 既存（変更なし）
 ```
 
@@ -820,7 +832,7 @@ LLM_PROVIDER=pageindex
 ```json
 {
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.x.x"
+    "@modelcontextprotocol/sdk": "^1.25.3"
   }
 }
 ```
@@ -829,6 +841,8 @@ LLM_PROVIDER=pageindex
 
 ```
 1. MCP 接続（mcp-remote を spawn）
+   - dynamic import で MCP SDK をロード（bundling 回避）
+   - StdioClientTransport で子プロセスとして起動
    npx mcp-remote https://chat.pageindex.ai/mcp
 
 2. process_document ツール呼び出し
@@ -840,27 +854,34 @@ LLM_PROVIDER=pageindex
    出力: summary text
 ```
 
-#### summary_generator の変更
+#### 実装上の注意点（obsidian-smart-composer 参照）
+
+- **dynamic import**: `@modelcontextprotocol/sdk` は動的に `await import()` でロード
+  - Node.js built-in（`process`, `stream` 等）を bundling せず、Obsidian 側の Node.js 環境を利用
+- **esbuild external**: `builtinModules` + `node:*` prefix 両方を external 指定
+- **es2020 target**: dynamic import 構文のサポートに必要
+
+#### summary_generator の変更 - ✅ 実装済み
 
 ```typescript
-// 現行
-const userContent = `You will be given HTML...\n\n[HTML]\n${htmlText}`;
-summary = await provider.summarize({ systemPrompt, userContent });
-
-// PageIndex 対応後
+// 実装済みコード（summary_generator.ts）
 const pdfUrl = `https://arxiv.org/pdf/${id}`;
-summary = await provider.summarize({
+
+const userContent = `You will be given HTML...\n\n[HTML]\n${htmlText}`;
+summary = await providerResult.provider.summarize({
   systemPrompt,
   userContent,
-  pdfUrl,      // PageIndex 用
-  arxivId: id  // ログ用
+  // PageIndex-specific params (ignored by OpenAI/Gemini providers)
+  pdfUrl,
+  arxivId: id,
 });
 ```
 
-#### Desktop Only 制約
+#### Desktop Only 制約 - ✅ 実装済み
 
 - MCP クライアントは `child_process` を使用するため Desktop Only
-- `Platform.isDesktop` でガード（Mobile では fallback or エラー）
+- `Platform.isDesktop` でガード（`McpClient.isAvailable()` / `PageIndexProvider.isAvailable()`）
+- Mobile では `createProvider()` が `{status: 'disabled', reason: 'PAGEINDEX_DESKTOP_ONLY'}` を返す
 
 - [ ] Deep Research 機能（GPT Researcher 連携）
   - 概要: 論文要約後、GPT Researcher MCP Server を呼び出して統合リサーチレポートを生成
