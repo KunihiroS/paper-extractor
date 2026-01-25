@@ -769,3 +769,13 @@ PageIndex OSS + 自前 LLM API Key
   - [ ] 設計
   - [ ] 実装
   - [ ] テスト
+- [ ] Deep Research 機能（GPT Researcher 連携）
+  - 概要: 論文要約後、GPT Researcher MCP Server を呼び出して統合リサーチレポートを生成
+  - 入力: 対象論文 PDF + 要約
+  - 処理: Vault 内関連ノート検索 + Web 検索（関連論文、著者の他論文、引用関係等）
+  - 出力: `{noteBaseName}/research_report.md`
+  - 依存: GPT Researcher MCP Server (`deep_research`, `write_report` 等のツール)
+  - [ ] 方針検討
+  - [ ] 設計
+  - [ ] 実装
+  - [ ] テスト
