@@ -146,6 +146,7 @@ export class McpClient {
 	/**
 	 * Load default environment from shell.
 	 * This ensures PATH and other important variables are available.
+	 * Also adds common Node.js manager paths (nvm, fnm) for GUI-launched apps.
 	 */
 	private async loadDefaultEnv(): Promise<void> {
 		// Use process.env to get current environment
@@ -153,6 +154,25 @@ export class McpClient {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const processModule = require('process') as typeof import('process');
 		this.defaultEnv = {...processModule.env} as Record<string, string>;
+
+		// GUI-launched apps (like Obsidian) may not have nvm/fnm paths.
+		// Add common Node.js binary locations to PATH.
+		const home = this.defaultEnv.HOME || this.defaultEnv.USERPROFILE || '';
+		if (home) {
+			const additionalPaths = [
+				// nvm (Linux/macOS)
+				`${home}/.nvm/versions/node/v22.16.0/bin`,
+				`${home}/.nvm/versions/node/v20.18.0/bin`,
+				`${home}/.nvm/versions/node/v18.20.0/bin`,
+				// fnm
+				`${home}/.local/share/fnm/aliases/default/bin`,
+				// Homebrew Node (macOS)
+				'/opt/homebrew/bin',
+				'/usr/local/bin',
+			];
+			const currentPath = this.defaultEnv.PATH || '';
+			this.defaultEnv.PATH = [...additionalPaths, currentPath].join(':');
+		}
 	}
 }
 
