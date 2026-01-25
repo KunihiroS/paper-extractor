@@ -766,9 +766,102 @@ PageIndex OSS + 自前 LLM API Key
   - [x] Troubleshooting の冗長な重複説明を簡潔化
 - [ ] PageIndexを組み込み
   - [x] 方針検討
-  - [ ] 設計
+  - [x] 設計
   - [ ] 実装
   - [ ] テスト
+
+### PageIndex 統合設計
+
+#### 設計方針: インターフェース拡張（案A）
+
+既存 `LlmProvider` インターフェースを拡張し、PageIndex 固有のパラメータをオプションで追加する。
+
+```typescript
+// types.ts - 拡張版 SummarizeParams
+export type SummarizeParams = {
+  systemPrompt: string;
+  userContent: string;
+  // PageIndex 用（オプション）
+  pdfUrl?: string;
+  arxivId?: string;
+};
+```
+
+- 既存プロバイダ（OpenAI, Gemini）: `systemPrompt` + `userContent` を使用（変更なし）
+- PageIndex: `pdfUrl` を使用し、`systemPrompt`/`userContent` は無視
+
+#### ファイル構成
+
+```
+src/llm/
+├── providers/
+│   ├── openai_chat_provider.ts  # 既存（変更なし）
+│   ├── gemini_provider.ts       # 既存（変更なし）
+│   └── pageindex_provider.ts    # 新規
+├── mcp/
+│   └── mcp_client.ts            # 新規: MCP クライアント（mcp-remote spawn）
+├── createProvider.ts            # factory に pageindex 追加
+├── types.ts                     # SummarizeParams 拡張
+└── env.ts                       # 既存（変更なし）
+```
+
+#### .env 設定
+
+```dotenv
+# PageIndex を使用する場合
+LLM_PROVIDER=pageindex
+
+# OAuth は mcp-remote が自動処理（初回実行時にブラウザ認証）
+# 追加設定不要
+```
+
+#### 依存パッケージ
+
+```json
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.x.x"
+  }
+}
+```
+
+#### PageIndexProvider 処理フロー
+
+```
+1. MCP 接続（mcp-remote を spawn）
+   npx mcp-remote https://chat.pageindex.ai/mcp
+
+2. process_document ツール呼び出し
+   入力: pdfUrl (https://arxiv.org/pdf/{id})
+   出力: doc_id
+
+3. query_document ツール呼び出し
+   入力: doc_id, query ("Summarize this paper in Japanese")
+   出力: summary text
+```
+
+#### summary_generator の変更
+
+```typescript
+// 現行
+const userContent = `You will be given HTML...\n\n[HTML]\n${htmlText}`;
+summary = await provider.summarize({ systemPrompt, userContent });
+
+// PageIndex 対応後
+const pdfUrl = `https://arxiv.org/pdf/${id}`;
+summary = await provider.summarize({
+  systemPrompt,
+  userContent,
+  pdfUrl,      // PageIndex 用
+  arxivId: id  // ログ用
+});
+```
+
+#### Desktop Only 制約
+
+- MCP クライアントは `child_process` を使用するため Desktop Only
+- `Platform.isDesktop` でガード（Mobile では fallback or エラー）
+
 - [ ] Deep Research 機能（GPT Researcher 連携）
   - 概要: 論文要約後、GPT Researcher MCP Server を呼び出して統合リサーチレポートを生成
   - 入力: 対象論文 PDF + 要約

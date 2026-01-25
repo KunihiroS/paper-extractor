@@ -3,6 +3,7 @@ import {readEnvFileOrThrow} from './env';
 import type {LlmProvider} from './types';
 import {OpenAiChatProvider} from './providers/openai_chat_provider';
 import {GeminiProvider} from './providers/gemini_provider';
+import {PageIndexProvider} from './providers/pageindex_provider';
 
 export type ProviderCreateResult =
 	| {status: 'disabled'; reason: string}
@@ -55,6 +56,20 @@ export async function createProvider(settings: MyPluginSettings): Promise<Provid
 			provider: new GeminiProvider(apiKey, model),
 			providerName: 'gemini',
 			model,
+		};
+	}
+
+	if (env.LLM_PROVIDER === 'pageindex') {
+		// PageIndex uses MCP via stdio (mcp-remote handles OAuth automatically)
+		// Desktop only - requires child_process for stdio transport
+		if (!PageIndexProvider.isAvailable()) {
+			return {status: 'disabled', reason: 'PAGEINDEX_DESKTOP_ONLY'};
+		}
+		return {
+			status: 'enabled',
+			provider: new PageIndexProvider(),
+			providerName: 'pageindex',
+			model: 'pageindex-mcp', // PageIndex doesn't expose model name
 		};
 	}
 

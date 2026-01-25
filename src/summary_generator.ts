@@ -165,10 +165,16 @@ export async function generateSummary(
 				new Notice('AI response waiting...');
 			}, 3000);
 
+			// Build PDF URL for PageIndex provider (uses arXiv's predictable URL pattern)
+			const pdfUrl = `https://arxiv.org/pdf/${id}`;
+
 			const userContent = `You will be given HTML extracted from an arXiv paper. Summarize it in Japanese as Markdown.\n\n[HTML]\n${htmlText}`;
 			summary = await providerResult.provider.summarize({
 				systemPrompt,
 				userContent,
+				// PageIndex-specific params (ignored by OpenAI/Gemini providers)
+				pdfUrl,
+				arxivId: id,
 			});
 		} catch (e) {
 			reason = `${providerName.toUpperCase()}_REQUEST_FAILED`;
