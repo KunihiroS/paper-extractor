@@ -595,114 +595,18 @@ OPENAI_MODEL="gpt-5.2"
 - 実行中フラグのロジックは外部呼び出しでも共通化する（二重実行防止）
 - 外部呼び出し経由でもログ/Noticeの整合を保つ
 
-## PageIndex 組み込み方針
+## 備忘録: Obsidian プラグインからの MCP 連携
 
-### 背景
+### 制約
 
-- 現行の `summary_generator` は OpenAI/Gemini を用いた HTML テキスト要約
-- PageIndex は vectorless RAG（ツリー構造ベースの reasoning）で長文 PDF を扱える
-- MCP (Model Context Protocol) 経由で PageIndex Cloud に接続し、PDF 要約を実現する
+- `@modelcontextprotocol/sdk` の `StdioClientTransport` は `child_process.spawn` 前提
+- Obsidian（Electron）環境では spawn に制限あり
 
-### 無料枠（調査結果）
+### 回避策
 
-| 接続方式 | ページ処理 | クエリ | 論文換算（10-50p/本） |
-|----------|-----------|--------|----------------------|
-| **MCP (OAuth)** | 1000ページ無料 | 無制限 | ~20-100本 |
-| API Key (HTTP) | 200 OCR + 200 Tree | 100クエリ | ~8-20本 |
-
-- ソース: [pageindex-mcp README](https://github.com/VectifyAI/pageindex-mcp#L12-L23)
-  - `Free 1000 pages / Unlimited conversations`
-
-### 採用方針: 段階的アプローチ
-
-#### Phase 1: Remote MCP（今回実装）
-
-```
-paper-extractor
-    ↓ MCP SDK (stdio)
-npx mcp-remote https://chat.pageindex.ai/mcp
-    ↓ OAuth 認証
-PageIndex Cloud
-    ↓ process_document(url="https://arxiv.org/pdf/{id}")
-PageIndex Cloud が arXiv から直接 PDF を取得して処理
-```
-
-- **接続方式**: `mcp-remote` を bridge として PageIndex Cloud に接続
-- **認証**: OAuth（初回実行時にブラウザ認証）
-- **入力**: arXiv PDF URL（`https://arxiv.org/pdf/{id}`）を渡す
-  - ローカル PDF アップロード不要（PageIndex Cloud が arXiv から直接取得）
-- **メリット**:
-  - 設定シンプル（OAuth 認証のみ）
-  - ローカルファイル操作不要
-  - 1000ページ/無制限クエリの無料枠
-
-#### Phase 2: Local OSS（将来、制限到達時）
-
-```
-paper-extractor
-    ↓ ???（要開発）
-┌─────────────────────────────┐
-│ ローカル MCP サーバー（要開発）│
-│  - FastAPI + MCP wrapper?   │
-│  - Python CLI 直接実行?      │
-│  - stdio MCP server 自作?    │
-└─────────────────────────────┘
-    ↓
-PageIndex OSS + 自前 LLM API Key
-```
-
-- **Phase 2 は追加開発が必要**:
-  1. PageIndex OSS のローカルセットアップ
-  2. MCP 経由で呼べるインターフェース構築（FastAPI or Python CLI）
-  3. paper-extractor 側の接続先切り替え
-  4. **PDF 入力対応**（後述）
-- **Phase 1 の使用感を確認してから判断**
-
-##### Phase 2 での PDF 入力対応
-
-- PageIndex は PDF 専用（HTML 対応は非現実的）
-- ローカル処理では `paper_fetcher` が保存済みの PDF（`{noteBaseName}/{id}.pdf`）を入力とする
-- 改修箇所:
-  - `summary_generator`: 入力ソースを HTML → PDF に切替（`DocumentSource` 層で吸収）
-  - `PageIndexProvider`: ローカル PDF パスを受け取り、PageIndex OSS へ渡す
-- 現行設計で「将来 PDF 入力へ変更しやすくする」を考慮済みのため、改修規模は限定的
-
-### 技術詳細
-
-#### PageIndex MCP の制約
-
-- **入力**: PDF のみ（`%PDF` magic bytes を検証）
-- **HTML 不可**: 現行の HTML 入力は使えない
-- **arXiv URL**: `https://arxiv.org/pdf/{id}` を渡せば PageIndex Cloud が取得
-
-#### mcp-remote 設定例
-
-```json
-{
-  "mcpServers": {
-    "pageindex": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://chat.pageindex.ai/mcp"]
-    }
-  }
-}
-```
-
-#### 実装で必要な依存
-
-- `@modelcontextprotocol/sdk` - MCP クライアント SDK
-- `mcp-remote` は npx 経由で実行（依存追加不要）
-
-### 実装タスク（Phase 1）
-
-1. `@modelcontextprotocol/sdk` を dependencies に追加
-2. `PageIndexProvider` を `LlmProvider` interface で実装
-   - MCP クライアント生成（`mcp-remote` を spawn）
-   - `process_document(url)` で PDF 登録 → `doc_id` 取得
-   - `query_document(doc_id, query)` で要約取得
-3. `createProvider` factory に `pageindex` 分岐を追加
-4. 設定: `LLM_PROVIDER=pageindex`（`.env` で切替）
-5. OAuth 認証フロー確認（初回実行時のブラウザ認証）
+- HTTP API があるサービスなら MCP を使わず直接呼び出し
+- HTTP bridge 経由で外部 MCP サーバーに接続
+- Obsidian 外部で MCP 処理し、結果をファイル経由で受け渡し
 
 ## 開発計画と進捗
 
@@ -764,11 +668,6 @@ PageIndex OSS + 自前 LLM API Key
   - [x] `README.md` を現行仕様に合わせて英語で刷新
   - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
   - [x] Troubleshooting の冗長な重複説明を簡潔化
-- [ ] PageIndexを組み込み
-  - [x] 方針検討
-  - [ ] 設計
-  - [ ] 実装
-  - [ ] テスト
 - [ ] Deep Research 機能（GPT Researcher 連携）
   - 概要: 論文要約後、GPT Researcher MCP Server を呼び出して統合リサーチレポートを生成
   - 入力: 対象論文 PDF + 要約
