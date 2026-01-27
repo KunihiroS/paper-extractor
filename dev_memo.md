@@ -674,6 +674,8 @@ OPENAI_MODEL="gpt-5.2"
   - 処理: Vault 内関連ノート検索 + Web 検索（関連論文、著者の他論文、引用関係等）
   - 出力: `{noteBaseName}/research_report.md`
   - 依存: GPT Researcher MCP Server (`deep_research`, `write_report` 等のツール)
+  - Deploy: 案1 Cloud Run+公式Docker(ローカルのVaultを対象にできない、複雑) , 案2: ローカルDocker(こっちのほうがシンプル？各PCでDocker操作は必要)
+  - 要検討事項: embeddingの構築をするかしないか
   - [ ] 方針検討
   - [ ] 設計
   - [ ] 実装
