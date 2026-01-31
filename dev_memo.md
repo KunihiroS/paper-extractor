@@ -658,6 +658,35 @@ OPENAI_MODEL="gpt-5.2"
     - `{{updated_date}}`（更新日）
     - `{{category}}`（カテゴリー）
   - [ ] テンプレート内に存在するプレースホルダのみ置換（現行の `{{date}}` / `{{time}}` と同様に未指定なら無視）
+  - 参考
+    ```
+    タグ取得のAPI
+      Obsidian APIには主に以下の方法があります：
+
+      getAllTags(cache): 特定のファイルのメタデータキャッシュから、フロントマターと本文の両方のタグを配列として取得します
+
+      app.metadataCache.getTags(): vault全体のすべてのタグを取得する非公式メソッドです。公式ドキュメントには記載されていませんが、多くのプラグイン開発者が利用しています
+
+      実装例
+      vault内のすべてのタグを取得する典型的な実装パターンは以下です：
+      ​
+
+      typescript
+      import { getAllTags } from 'obsidian';
+
+      const files = app.vault.getMarkdownFiles();
+      const tagSet = new Set<string>();
+
+      for (const file of files) {
+        const cache = app.metadataCache.getCache(file.path);
+        if (cache) {
+          getAllTags(cache)?.forEach((tag) => {
+            tagSet.add(tag);
+          });
+        }
+      }
+      この方法では、各ファイルのメタデータキャッシュからタグを取得するため、ファイル本体を再パースする必要がなく効率的です。Tag Wranglerなどの人気プラグインでも、このAPIを使ってタグの一覧表示やリネーム機能を実装しています。
+    ```
 - [ ] 外部連携（API公開）
   - [x] 実装方針の記載（dev_memo の「実装検討: 外部呼び出し（API公開）」）
   - [ ] 実装（公開メソッド/API surface）
@@ -668,7 +697,7 @@ OPENAI_MODEL="gpt-5.2"
   - [x] `README.md` を現行仕様に合わせて英語で刷新
   - [x] `.env` の準正常系（`summaryEnabled` / `LLM_PROVIDER` / `OPENAI_MODEL`）の挙動説明を追記
   - [x] Troubleshooting の冗長な重複説明を簡潔化
-- [ ] Deep Research 機能（GPT Researcher 連携）
+- [ ] Deep Research アドバンス機能（GPT Researcher 連携）
   - 概要: 論文要約後、GPT Researcher MCP Server https://github.com/assafelovic/gpt-researcher を呼び出して統合リサーチレポートを生成
   - 入力: 対象論文 PDF + 要約
   - 処理: Vault 内関連ノート検索 + Web 検索（関連論文、著者の他論文、引用関係等）
@@ -680,3 +709,340 @@ OPENAI_MODEL="gpt-5.2"
   - [ ] 設計
   - [ ] 実装
   - [ ] テスト
+- [ ] Deep Research シンプル機能（GPT Researcher 連携）
+  - 概要: 論文要約後、OpenAIもしくはGeminiのDR APIを使いWebのソースからDeep Researchを行い、指定のディレクトリのレポートを保存する。
+  - DR対象: Webソースとし、Vault内は対象外
+  - メリット: AI ProviderのAPIを利用することで開発工数がかなり下がる。
+  - [ ] 方針検討
+  - [ ] 設計
+  - [ ] 実装
+  - [ ] テスト
+  - 参考
+  ```
+    ## Deep Research API 比較：OpenAI vs Gemini
+
+    ### 📊 コスト比較（100万トークンあたり）
+
+    | 項目 | OpenAI o4-mini-deep-research | Gemini 3 Flash |
+    |------|------------------------------|----------------|
+    | **入力トークン** | $2.00  [blog.galaxy](https://blog.galaxy.ai/model/o4-mini-deep-research) | $0.50  [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+    | **出力トークン** | $8.00  [blog.galaxy](https://blog.galaxy.ai/model/o4-mini-deep-research) | $3.00  [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+    | **コスト差** | - | **75%安い（1/4）**  [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+    | **コンテキスト長** | 200K  [costgoat](https://costgoat.com/pricing/openai-api) | 1M  [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+    | **レート制限** | - | 2000 RPM  [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+    | **キャッシング** | - | ✅ あり（90%削減可能） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price) |
+
+    ### 💻 実装比較
+
+    #### OpenAI o4-mini-deep-research
+
+    ```typescript
+    import OpenAI from "openai";
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    // 1回のAPIコールで完結
+    const response = await openai.responses.create({
+      model: "o4-mini-deep-research",
+      input: "論文の関連研究を調査してください",
+      background: true,  // 長時間実行用
+      tools: [{ type: "web_search_preview" }],
+      // Webhookで完了通知（オプション）
+      webhook: {
+        url: "https://your-webhook.com/callback",
+        events: ["completed"]
+      }
+    });
+
+    console.log(response.output_text);
+    ```
+
+    **特徴:**
+    - ✅ 1回のAPIコールで完結
+    - ✅ Webhook対応（完了通知自動） [github](https://github.com/assafelovic/gpt-researcher)
+    - ✅ ストリーミング対応
+    - ⚠️ ポーリング不要だが高コスト
+
+    #### Gemini 3 Flash Deep Research
+
+    ```typescript
+    import { GoogleGenAI } from '@google/genai';
+
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GOOGLE_API_KEY
+    });
+
+    // Step 1: 調査リクエスト作成
+    const interaction = await ai.interactions.create({
+      input: "論文の関連研究を調査してください",
+      agent: "deep-research-pro-preview-12-2025",
+      background: true
+    });
+
+    // Step 2: ポーリングで結果取得
+    let result;
+    while (true) {
+      result = await ai.interactions.get(interaction.id);
+      if (result.status === 'completed') break;
+      if (result.status === 'failed') throw new Error(result.error);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    console.log(result.output);
+    ```
+
+    **特徴:**
+    - ✅ 圧倒的低コスト（OpenAIの1/4） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - ✅ 長いコンテキスト（1M） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - ✅ キャッシング機能で更に削減可能 [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - ⚠️ ポーリング実装が必須 [ai.google](https://ai.google.dev/gemini-api/docs/deep-research)
+
+    ### 🎯 実装の簡潔さ
+
+    | 項目 | OpenAI | Gemini |
+    |------|--------|--------|
+    | **必要なAPIコール数** | 1回 | 2回以上（create + get） |
+    | **ポーリング** | 不要 | 必要 |
+    | **Webhook** | ✅ 対応 | ❌ 非対応 |
+    | **エラーハンドリング** | シンプル | やや複雑 |
+    | **コード行数** | ~15行 | ~25行 |
+
+    ### 💡 推奨シナリオ
+
+    **Gemini 3 Flashを選ぶべきケース:**
+    - コスト最優先（OpenAIの**1/4**） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - 頻繁な調査実行（キャッシングで更に削減） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - 長文入力が多い（1Mコンテキスト） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+    - ポーリング実装が許容範囲
+
+    **OpenAI o4-miniを選ぶべきケース:**
+    - 実装工数を最小化したい
+    - Webhook連携が必要
+    - 既存のOpenAI環境がある
+    - コストよりも開発速度重視
+
+    ### 💰 具体的なコスト例
+
+    論文調査1回あたり（入力10K、出力30Kトークンと仮定）:
+
+    - **OpenAI o4-mini**: $0.02 + $0.24 = **$0.26**
+    - **Gemini 3 Flash**: $0.005 + $0.09 = **$0.095**
+
+    月間100回実行した場合:
+    - **OpenAI**: $26/月
+    - **Gemini**: $9.5/月（**63%削減**） [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+
+    ### 結論
+
+    **ObsidianプラグインでのDeep Research機能には、Gemini 3 Flashを推奨します**。ポーリング実装の工数増加を考慮しても、**75%のコスト削減**と長期的なメンテナンス性で優位です。 [aifreeapi](https://www.aifreeapi.com/en/posts/gemini-3-flash-api-price)
+
+    ## Geminiでの実装パターン
+
+    ### パターン1: フォアグラウンドポーリング（基本）
+
+    ```typescript
+    import { Notice, Plugin } from 'obsidian';
+    import { GoogleGenAI } from '@google/genai';
+
+    async function runDeepResearch(query: string) {
+      const ai = new GoogleGenAI({ apiKey: API_KEY });
+      
+      // Step 1: リクエスト送信
+      new Notice('Deep Research開始中...');
+      const interaction = await ai.interactions.create({
+        input: query,
+        agent: "deep-research-pro-preview-12-2025",
+        background: true
+      });
+      
+      // Step 2: 定期的にステータス通知しながらポーリング
+      let elapsed = 0;
+      while (true) {
+        const result = await ai.interactions.get(interaction.id);
+        
+        if (result.status === 'completed') {
+          new Notice('✅ Deep Research完了！');
+          // ファイル保存
+          await this.app.vault.create(
+            'research/research_report.md',
+            result.output
+          );
+          return result.output;
+        }
+        
+        if (result.status === 'failed') {
+          new Notice('❌ エラーが発生しました');
+          throw new Error(result.error);
+        }
+        
+        // 30秒ごとに進捗通知
+        elapsed += 5;
+        if (elapsed % 30 === 0) {
+          new Notice(`🔍 調査中... (${elapsed}秒経過)`);
+        }
+        
+        await sleep(5000); // 5秒待機
+      }
+    }
+    ```
+
+    **挙動:**
+    - ✅ シンプルな実装
+    - ⚠️ **Obsidianを閉じるとポーリング中断**（Gemini側の処理は継続中）
+    - ⚠️ プラグインアンロード時も中断
+
+    ### パターン2: バックグラウンド永続化（推奨）
+
+    ```typescript
+    // プラグイン設定にリクエストIDを保存
+    interface PluginSettings {
+      activeResearches: Array<{
+        id: string;
+        query: string;
+        startTime: number;
+        filePath: string;
+      }>;
+    }
+
+    class DeepResearchPlugin extends Plugin {
+      settings: PluginSettings;
+      pollingInterval: number;
+
+      async onload() {
+        await this.loadSettings();
+        
+        // プラグイン起動時に未完了のリサーチを再開
+        this.resumePendingResearches();
+        
+        // 定期的にチェック（60秒ごと）
+        this.registerInterval(
+          window.setInterval(() => {
+            this.checkActiveResearches();
+          }, 60000)
+        );
+      }
+
+      async startDeepResearch(query: string) {
+        const ai = new GoogleGenAI({ apiKey: this.settings.apiKey });
+        
+        const interaction = await ai.interactions.create({
+          input: query,
+          agent: "deep-research-pro-preview-12-2025",
+          background: true
+        });
+        
+        // 設定に保存（永続化）
+        this.settings.activeResearches.push({
+          id: interaction.id,
+          query: query,
+          startTime: Date.now(),
+          filePath: `research/${Date.now()}_report.md`
+        });
+        await this.saveSettings();
+        
+        new Notice('🔍 Deep Research開始（バックグラウンド実行）');
+      }
+
+      async checkActiveResearches() {
+        const ai = new GoogleGenAI({ apiKey: this.settings.apiKey });
+        
+        for (const research of this.settings.activeResearches) {
+          const result = await ai.interactions.get(research.id);
+          
+          if (result.status === 'completed') {
+            // ファイル保存
+            await this.app.vault.create(research.filePath, result.output);
+            
+            // 完了通知
+            new Notice(`✅ Deep Research完了！\n${research.query}`, 10000);
+            
+            // リストから削除
+            this.settings.activeResearches = 
+              this.settings.activeResearches.filter(r => r.id !== research.id);
+            await this.saveSettings();
+          }
+          
+          // タイムアウト処理（30分）
+          if (Date.now() - research.startTime > 30 * 60 * 1000) {
+            new Notice(`⏱️ タイムアウト: ${research.query}`);
+            this.settings.activeResearches = 
+              this.settings.activeResearches.filter(r => r.id !== research.id);
+            await this.saveSettings();
+          }
+        }
+      }
+      
+      async resumePendingResearches() {
+        if (this.settings.activeResearches.length > 0) {
+          new Notice(
+            `🔄 ${this.settings.activeResearches.length}件の調査を再開中...`
+          );
+          await this.checkActiveResearches();
+        }
+      }
+    }
+    ```
+
+    **挙動:**
+    - ✅ **Obsidian閉じても再起動時に再開**
+    - ✅ 複数の調査を並行管理可能
+    - ✅ ユーザーは他の作業を継続できる
+    - ⚠️ 設定ファイルにIDを永続化する必要あり
+
+    ## Gemini側の処理について
+
+    ご指摘の通り、**Obsidianを閉じてもGemini側の処理は継続されます**。 [ai.google](https://ai.google.dev/gemini-api/docs/deep-research)
+
+    - ポーリングを停止してもGeminiは調査を完了まで実行
+    - `interaction.id`さえ保存しておけば後から結果取得可能 [ai.google](https://ai.google.dev/gemini-api/docs/deep-research)
+    - 一定期間後（数日？）にGemini側でオブジェクトは自動削除されると推測
+
+    ## 推奨実装
+
+    ```typescript
+    // ユーザー体験を最適化した実装
+    async startDeepResearch(query: string) {
+      // 1. すぐにリクエスト送信
+      const interaction = await this.sendResearchRequest(query);
+      
+      // 2. 設定に保存（永続化）
+      await this.saveToSettings(interaction.id, query);
+      
+      // 3. ユーザーに通知
+      new Notice(
+        '🔍 Deep Research開始\n' +
+        '完了まで2-5分程度かかります。\n' +
+        '他の作業を続けてください。',
+        8000
+      );
+      
+      // 4. バックグラウンドでポーリング開始
+      this.startPolling(interaction.id);
+    }
+
+    // 60秒ごとにバックグラウンドチェック
+    async startPolling(id: string) {
+      const checkInterval = setInterval(async () => {
+        const result = await this.checkStatus(id);
+        
+        if (result.completed) {
+          clearInterval(checkInterval);
+          new Notice('✅ Deep Research完了！\nレポートを確認してください', 15000);
+          // 必要ならファイルを自動で開く
+          await this.openFile(result.filePath);
+        }
+      }, 60000); // 60秒
+    }
+    ```
+
+    ## まとめ
+
+    - **短期実行（5分以内）**: パターン1で十分
+    - **長期実行 or Obsidian閉じる可能性あり**: パターン2推奨
+    - **Gemini側**: ポーリング停止しても処理継続、結果は後から取得可能 [ai.google](https://ai.google.dev/gemini-api/docs/deep-research)
+    - **ユーザー体験**: 30-60秒ごとの軽い通知 + 完了時に目立つ通知が最適
+
+    パターン2なら、ユーザーがObsidianを閉じても再起動時に自動的に結果を取得できます。
+  ```
